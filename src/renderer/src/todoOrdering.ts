@@ -1,4 +1,5 @@
 import type { TodoItem } from '../../shared/types';
+import { isTodoActive } from '../../shared/todoState';
 
 export type TodoPlacement = 'before' | 'after';
 export type TodoStepDirection = 'up' | 'down';
@@ -11,7 +12,7 @@ export function buildTodoListUnits(items: TodoItem[]): TodoListUnit[] {
   const units: TodoListUnit[] = [];
   const groups = new Map<string, Extract<TodoListUnit, { type: 'tag-group' }>>();
 
-  for (const item of items) {
+  for (const item of [...items.filter(isTodoActive), ...items.filter((item) => !isTodoActive(item))]) {
     if (!item.tag) {
       units.push({ type: 'todo', id: todoUnitId(item.id), item });
       continue;
@@ -41,7 +42,7 @@ export function flattenTodoUnits(units: TodoListUnit[]): TodoItem[] {
 }
 
 export function flattenActiveUnitIds(units: TodoListUnit[]): string[] {
-  return flattenTodoUnits(units).filter((item) => !item.completed).map((item) => item.id);
+  return flattenTodoUnits(units).filter((item) => isTodoActive(item)).map((item) => item.id);
 }
 
 export function moveTodoUnitRelative(
@@ -110,7 +111,7 @@ export function moveTodoRelative(
 
 export function moveTodoStep(items: TodoItem[], itemId: string, direction: TodoStepDirection): TodoItem[] {
   const target = items.find((item) => item.id === itemId);
-  if (!target || target.completed) {
+  if (!target || !isTodoActive(target)) {
     return items;
   }
 
@@ -154,11 +155,11 @@ export function moveTodoWithinTagRelative(
 
 export function moveTodoWithinTagStep(items: TodoItem[], itemId: string, direction: TodoStepDirection): TodoItem[] {
   const target = items.find((item) => item.id === itemId);
-  if (!target?.tag || target.completed) {
+  if (!target?.tag || !isTodoActive(target)) {
     return items;
   }
 
-  const activeGroupItems = items.filter((item) => item.tag === target.tag && !item.completed);
+  const activeGroupItems = items.filter((item) => item.tag === target.tag && isTodoActive(item));
   const currentIndex = activeGroupItems.findIndex((item) => item.id === itemId);
   const nextIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
   if (currentIndex < 0 || nextIndex < 0 || nextIndex >= activeGroupItems.length) {
@@ -182,13 +183,13 @@ export function getTagUnitId(tag: string): string {
 }
 
 function canReorderAgainst(dragged: TodoItem, target: TodoItem): boolean {
-  return dragged.id !== target.id && !dragged.completed && !target.completed;
+  return dragged.id !== target.id && isTodoActive(dragged) && isTodoActive(target);
 }
 
 function unitCanMove(unit: TodoListUnit): boolean {
   return unit.type === 'tag-group'
-    ? unit.items.some((item) => !item.completed)
-    : !unit.item.completed;
+    ? unit.items.some((item) => isTodoActive(item))
+    : isTodoActive(unit.item);
 }
 
 function tagUnitId(tag: string): string {

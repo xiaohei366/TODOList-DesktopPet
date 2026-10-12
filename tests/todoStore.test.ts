@@ -78,6 +78,61 @@ describe('TodoMarkdownStore', () => {
     );
   });
 
+  test('suspends and restores a todo across reloads without losing its details', async () => {
+    const store = new TodoMarkdownStore(file, () => today);
+    const first = await store.add('First', '2026-05-12');
+    await store.updateTag(first.id, 'Work');
+    await store.updateNotes(first.id, 'Keep this note');
+    await store.setHighlighted(first.id, true);
+    await store.addSubTask(first.id, 'Child');
+    const second = await store.add('Second');
+    await store.reorderVisible([first.id, second.id]);
+
+    const suspended = await store.setSuspended(first.id, true);
+    expect(suspended).toMatchObject({
+      id: first.id, suspended: true, completed: false, highlighted: true,
+      tag: 'Work', notes: 'Keep this note', deadline: '2026-05-12'
+    });
+    expect(suspended.completedDate).toBeUndefined();
+    expect(suspended.displayOrder).toBeUndefined();
+    expect(suspended.subTasks).toEqual([{ id: `${first.id}::0`, text: 'Child', completed: false, displayOrder: 1 }]);
+    await expect(readFile(file, 'utf8')).resolves.toContain('- [-] [ddl:2026-05-12] [tag:Work] [!] ~~First~~');
+
+    const reloaded = new TodoMarkdownStore(file, () => today);
+    expect((await reloaded.list()).map((todo) => todo.text)).toEqual(['Second', 'First']);
+    await reloaded.reorderVisible([first.id, second.id]);
+    expect((await reloaded.list()).map((todo) => todo.text)).toEqual(['Second', 'First']);
+
+    const restored = await reloaded.setSuspended(first.id, false);
+    expect(restored).toMatchObject({ suspended: false, completed: false, text: 'First', tag: 'Work', highlighted: true });
+    expect(restored.subTasks[0].completed).toBe(false);
+    const markdown = await readFile(file, 'utf8');
+    expect(markdown).toContain('- [ ] [ddl:2026-05-12] [tag:Work] [!] First');
+    expect(markdown).not.toContain('- [-]');
+    expect(markdown).not.toContain('~~First~~');
+  });
+
+  test('keeps suspended todos visible across days and restores overdue state', async () => {
+    const store = new TodoMarkdownStore(file, () => today);
+    const first = await store.add('Paused');
+    await store.setSuspended(first.id, true);
+    const nextDay = new TodoMarkdownStore(file, () => new Date(2026, 4, 12));
+    const active = await nextDay.add('Active');
+    const visible = await nextDay.list();
+    expect(visible.map((todo) => todo.id)).toEqual([active.id, first.id]);
+    expect(visible[1]).toMatchObject({ suspended: true, overdue: false });
+    expect(await nextDay.setSuspended(first.id, false)).toMatchObject({ suspended: false, completed: false, overdue: true });
+  });
+
+  test('completion and suspension are mutually exclusive and undo completion restores an active todo', async () => {
+    const store = new TodoMarkdownStore(file, () => today);
+    const first = await store.add('First');
+    await store.setSuspended(first.id, true);
+    expect(await store.setCompleted(first.id, true)).toMatchObject({ suspended: false, completed: true, completedDate: '2026-05-11' });
+    expect(await store.setCompleted(first.id, false)).toMatchObject({ suspended: false, completed: false, completedDate: undefined });
+    expect(await store.setSuspended(first.id, true)).toMatchObject({ suspended: true, completed: false, completedDate: undefined });
+  });
+
   test('records completion date and keeps legacy completions visible when finished today', async () => {
     await writeFile(
       file,

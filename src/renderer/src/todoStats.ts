@@ -29,6 +29,7 @@ export function countRemainingToday(items: TodoItem[], todayKey: string): number
   // 未设置截止日期的项不计入。
   let count = 0;
   for (const item of items) {
+    if (item.suspended) continue;
     const parentCounts = !item.completed && item.deadline !== undefined && item.deadline <= todayKey;
     if (parentCounts) {
       count += 1;

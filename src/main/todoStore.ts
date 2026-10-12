@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { ImportResult, TodoItem, TodoSubTask } from '../shared/types';
+import { isTodoActive } from '../shared/todoState';
 
 type ParsedTodo = TodoItem & {
   order: number;
@@ -16,15 +17,15 @@ export function formatDateKey(date: Date): string {
 export function selectVisibleTodos(items: TodoItem[], todayKey: string): TodoItem[] {
   const withOverdue = items.map((item) => ({
     ...item,
-    overdue: !item.completed && item.date < todayKey
+    overdue: isTodoActive(item) && item.date < todayKey
   }));
   const active = withOverdue
-    .filter((item) => !item.completed && (item.overdue || item.date === todayKey))
+    .filter((item) => isTodoActive(item) && (item.overdue || item.date === todayKey))
     .sort((left, right) => compareVisibleActiveTodos(left, right, todayKey));
-  const completedToday = withOverdue.filter(
-    (item) => item.completed && (item.completedDate ?? item.date) === todayKey
+  const inactive = withOverdue.filter(
+    (item) => item.suspended ? item.date <= todayKey : item.completed && (item.completedDate ?? item.date) === todayKey
   );
-  return [...active, ...completedToday];
+  return [...active, ...inactive];
 }
 
 export function parseTodoMarkdown(content: string, todayKey: string): ParsedTodo[] {
@@ -48,14 +49,15 @@ export function parseTodoMarkdown(content: string, todayKey: string): ParsedTodo
       continue;
     }
 
-    const todo = /^\s*-\s+\[([ xX])\]\s+(.*)$/.exec(line);
+    const todo = /^\s*-\s+\[([ xX-])\]\s+(.*)$/.exec(line);
     if (!todo) {
       index += 1;
       continue;
     }
 
     const completed = todo[1].toLowerCase() === 'x';
-    const parsed = parseTodoBody(todo[2], completed);
+    const suspended = todo[1] === '-';
+    const parsed = parseTodoBody(todo[2], completed || suspended);
     const sourceLine = index + 1;
     const order = items.length;
     const occurrenceKey = `${currentDate}\0${parsed.text}`;
@@ -103,10 +105,11 @@ export function parseTodoMarkdown(content: string, todayKey: string): ParsedTodo
       date: currentDate,
       text: parsed.text,
       completed,
+      suspended,
       completedDate: parsed.completedDate,
       highlighted: parsed.highlighted,
       displayOrder: parsed.displayOrder,
-      overdue: !completed && currentDate < todayKey,
+      overdue: !completed && !suspended && currentDate < todayKey,
       sourceLine,
       order,
       notes: noteLines.join('\n'),
@@ -133,8 +136,8 @@ export function renderTodoMarkdown(items: TodoItem[]): string {
     const month = date.slice(0, 7);
     const dayItems = items.filter((item) => item.date === date);
     const orderedDayItems = [
-      ...dayItems.filter((item) => !item.completed),
-      ...dayItems.filter((item) => item.completed)
+      ...dayItems.filter(isTodoActive),
+      ...dayItems.filter((item) => !isTodoActive(item))
     ];
 
     if (renderedYear !== year) {
@@ -233,6 +236,7 @@ export class TodoMarkdownStore {
     const target = {
       ...items[index],
       completed,
+      suspended: false,
       completedDate: completed ? formatDateKey(this.clock()) : undefined
     };
     if (completed) {
@@ -241,6 +245,18 @@ export class TodoMarkdownStore {
     const next = items.filter((item) => item.id !== id);
     next.push(target);
     await this.writeItems(next);
+    return this.findUpdated(target);
+  }
+
+  async setSuspended(id: string, suspended: boolean): Promise<TodoItem> {
+    const items = await this.readItems();
+    const item = items.find((candidate) => candidate.id === id);
+    if (!item) {
+      throw new Error('Todo not found.');
+    }
+    const target = { ...item, suspended, completed: false, completedDate: undefined };
+    delete target.displayOrder;
+    await this.writeItems([...items.filter((candidate) => candidate.id !== id), target]);
     return this.findUpdated(target);
   }
 
@@ -493,8 +509,8 @@ export class TodoMarkdownStore {
   async reorder(date: string, ids: string[]): Promise<TodoItem[]> {
     const items = await this.readItems();
     const dayItems = items.filter((item) => item.date === date);
-    const active = dayItems.filter((item) => !item.completed);
-    const completed = dayItems.filter((item) => item.completed);
+    const active = dayItems.filter(isTodoActive);
+    const completed = dayItems.filter((item) => !isTodoActive(item));
     const byId = new Map(active.map((item) => [item.id, item]));
     const reorderedActive = ids.map((id) => byId.get(id)).filter((item): item is ParsedTodo => Boolean(item));
     const missingActive = active.filter((item) => !ids.includes(item.id));
@@ -508,7 +524,7 @@ export class TodoMarkdownStore {
   async reorderVisible(ids: string[]): Promise<TodoItem[]> {
     const todayKey = formatDateKey(this.clock());
     const items = await this.readItems();
-    const activeVisible = selectVisibleTodos(items, todayKey).filter((item) => !item.completed);
+    const activeVisible = selectVisibleTodos(items, todayKey).filter(isTodoActive);
     const byId = new Map(activeVisible.map((item) => [item.id, item]));
     const uniqueIds = Array.from(new Set(ids));
     const ordered = uniqueIds.map((id) => byId.get(id)).filter((item): item is TodoItem => Boolean(item));
@@ -552,6 +568,7 @@ export class TodoMarkdownStore {
         item.date === target.date &&
         item.text === target.text &&
         item.completed === target.completed &&
+        Boolean(item.suspended) === Boolean(target.suspended) &&
         item.highlighted === target.highlighted &&
         item.tag === target.tag
     );
@@ -644,13 +661,13 @@ function parseTodoBody(
 }
 
 function formatTodoLine(item: TodoItem): string {
-  const checkbox = item.completed ? 'x' : ' ';
-  const order = item.displayOrder && !item.completed ? `[order:${item.displayOrder}] ` : '';
+  const checkbox = item.suspended ? '-' : item.completed ? 'x' : ' ';
+  const order = item.displayOrder && isTodoActive(item) ? `[order:${item.displayOrder}] ` : '';
   const ddl = item.deadline ? `[ddl:${item.deadline}] ` : '';
   const tag = item.tag ? `[tag:${item.tag}] ` : '';
   const done = item.completed && item.completedDate ? `[done:${item.completedDate}] ` : '';
   const marker = item.highlighted ? '[!] ' : '';
-  const text = item.completed ? `~~${item.text}~~` : item.text;
+  const text = isTodoActive(item) ? item.text : `~~${item.text}~~`;
   return `- [${checkbox}] ${order}${ddl}${tag}${done}${marker}${text}`;
 }
 
@@ -694,6 +711,7 @@ function todoMergeKey(item: TodoItem): string {
     item.date,
     item.text,
     item.completed ? '1' : '0',
+    item.suspended ? '1' : '0',
     item.highlighted ? '1' : '0',
     item.completedDate ?? '',
     item.tag ?? ''

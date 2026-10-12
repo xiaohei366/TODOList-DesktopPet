@@ -1,6 +1,7 @@
 import { Check, ChevronDown, ChevronRight, Circle, Pencil, Plus, Power, Trash2, X } from 'lucide-react';
 import React, { FormEvent, PointerEvent, ReactElement, type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import type { PetPackage, PetState, ScheduledTodoInput, ScheduledTodoRule, ScheduleTarget, SubTaskMenuAction, TodoItem, TodoMenuAction, TodoSubTask } from '../../shared/types';
+import { isTodoActive } from '../../shared/todoState';
 import { type AppLanguage, type I18nKey, defaultLanguage, t } from '../../shared/i18n';
 import { getAnimationSpec, getInteractivePetState, getPetSpriteStyle, getTodoDrivenPetState } from './petAnimation';
 import { createCelebrationParticles, type CelebrationParticle } from './completionCelebration';
@@ -354,7 +355,7 @@ export function App(): ReactElement {
     [schedules, schedulePanel.target]
   );
   const existingActiveTags = useMemo(
-    () => Array.from(new Set(todos.filter((item) => !item.completed && item.tag).map((item) => item.tag!))).sort(),
+    () => Array.from(new Set(todos.filter((item) => isTodoActive(item) && item.tag).map((item) => item.tag!))).sort(),
     [todos]
   );
   const scheduleMaxDay = getScheduleFormMaxDay(scheduleForm);
@@ -372,11 +373,11 @@ export function App(): ReactElement {
     if (!focusTarget) return null
     if (focusTarget.kind === 'todo') {
       const item = todos.find((t) => t.id === focusTarget.id)
-      return item ? { text: item.text, completed: item.completed } : null
+      return item && !item.suspended ? { text: item.text, completed: item.completed } : null
     }
     const parent = todos.find((t) => t.id === focusTarget.parentId)
     const sub = parent?.subTasks.find((s) => s.id === focusTarget.subTaskId)
-    return sub ? { text: sub.text, completed: sub.completed } : null
+    return sub && !parent?.suspended ? { text: sub.text, completed: sub.completed } : null
   }, [focusTarget, todos])
 
   function tr(key: I18nKey, values?: Record<string, string | number>): string {
@@ -521,6 +522,10 @@ export function App(): ReactElement {
       return;
     }
 
+    if (action.type === 'toggle-suspended') {
+      void window.todoPet.todos.setSuspended(item.id, !item.suspended);
+      return;
+    }
     if (action.type === 'edit') {
       setComposerOpen(false);
       setEditingTodo({ id: item.id, text: item.text });
@@ -579,7 +584,7 @@ export function App(): ReactElement {
   }
 
   function startTodoPress(event: PointerEvent, item: TodoItem): void {
-    if (editingTodo?.id === item.id || editingTodo?.parentId === item.id || editingNotesTodo?.id === item.id || editingTagTodo?.id === item.id || deadlineFormTodo?.id === item.id || item.completed || event.button !== 0) {
+    if (editingTodo?.id === item.id || editingTodo?.parentId === item.id || editingNotesTodo?.id === item.id || editingTagTodo?.id === item.id || deadlineFormTodo?.id === item.id || !isTodoActive(item) || event.button !== 0) {
       return;
     }
     todoPressStart.current = { x: event.clientX, y: event.clientY };
@@ -931,7 +936,7 @@ export function App(): ReactElement {
   }
 
   function hoverTodo(item: TodoItem, placement: TodoPlacement): void {
-    if (!draggingTodo || item.id === draggingTodo.id || item.completed) {
+    if (!draggingTodo || item.id === draggingTodo.id || !isTodoActive(item)) {
       return;
     }
     if (draggingTodo.tag && item.tag === draggingTodo.tag) {
@@ -1064,7 +1069,7 @@ export function App(): ReactElement {
           className={[
             'todo-item',
             options.inTagGroup ? 'todo-item--tagged' : '',
-            item.completed ? 'todo-item--done' : '',
+            !isTodoActive(item) ? 'todo-item--done' : '',
             item.highlighted ? 'todo-item--hot' : '',
             editingTodo?.id === item.id ? 'todo-item--editing' : '',
             editingNotesTodo?.id === item.id ? 'todo-item--editing-notes' : '',
@@ -1095,15 +1100,19 @@ export function App(): ReactElement {
             <>
               <button
                 className="todo-check"
-                title={item.completed ? tr('todo.markActive') : tr('todo.markDone')}
+                title={item.suspended ? tr('menu.restore') : item.completed ? tr('menu.markActive') : tr('todo.markDone')}
                 onClick={() => {
+                  if (item.suspended) {
+                    void window.todoPet.todos.setSuspended(item.id, false);
+                    return;
+                  }
                   if (!item.completed && item.subTasks.some((s) => !s.completed)) return;
                   void window.todoPet.todos.setCompleted(item.id, !item.completed).then(() => {
                     if (!item.completed) triggerCelebration();
                   });
                 }}
               >
-                {item.completed ? <Check size={15} /> : <Circle size={15} />}
+                {item.suspended ? <X size={15} /> : item.completed ? <Check size={15} /> : <Circle size={15} />}
               </button>
               <div className="todo-copy">
                 <span>
@@ -1120,7 +1129,7 @@ export function App(): ReactElement {
                   {item.text}
                 </span>
                 <div className="todo-copy-meta">
-                  {item.deadline && !item.completed ? (
+                  {item.deadline && isTodoActive(item) ? (
                     <small className={getDeadlineInfo(item.deadline).className}>{getDeadlineInfo(item.deadline).label}</small>
                   ) : (
                     <small>{item.overdue ? item.date : tr('todo.today')}</small>
@@ -1266,7 +1275,7 @@ export function App(): ReactElement {
     }
     const collapsed = collapsedTagGroups.has(unit.id);
     const color = getTagColor(unit.tag);
-    const activeCount = unit.items.filter((item) => !item.completed).length;
+    const activeCount = unit.items.filter(isTodoActive).length;
     return (
       <section className={['todo-tag-group', draggingTodoUnit === unit.id ? 'todo-tag-group--dragging' : ''].join(' ')} key={unit.id} style={{ '--tag-color': color } as CSSProperties}>
         <div

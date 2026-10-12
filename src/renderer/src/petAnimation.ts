@@ -1,3 +1,4 @@
+import { isTodoActive } from '../../shared/todoState';
 import type { AnimationSpec, PetState, TodoItem } from '../../shared/types';
 
 const codexCellWidth = 192;
@@ -96,7 +97,7 @@ export function getAnimationSpec(state: PetState): AnimationSpec {
 }
 
 export function getTodoDrivenPetState(items: TodoItem[]): PetState {
-  return items.some((item) => !item.completed) ? 'review' : 'idle';
+  return items.some(isTodoActive) ? 'review' : 'idle';
 }
 
 export function getInteractivePetState(input: InteractivePetStateInput): PetState {

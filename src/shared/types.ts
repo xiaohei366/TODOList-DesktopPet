@@ -12,6 +12,7 @@ export type TodoItem = {
   date: string;
   text: string;
   completed: boolean;
+  suspended?: boolean;
   completedDate?: string;
   highlighted: boolean;
   overdue: boolean;
@@ -30,6 +31,7 @@ export type TodoMenuActionType =
   | 'set-deadline'
   | 'add-sub-task'
   | 'toggle-completed'
+  | 'toggle-suspended'
   | 'toggle-highlighted'
   | 'delete'
   | 'move-up'

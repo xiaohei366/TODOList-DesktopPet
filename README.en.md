@@ -23,11 +23,11 @@ Windows desktop pet TODO manager built with Electron, React, and TypeScript. It 
 - Hover the pet's bottom-right corner to reveal a resize handle; drag it to scale the pet and TODO panel between 65% and 200%.
 - Visible system tray icon with show/hide, open raw data file, and quick quit actions in the selected language.
 - Right-click pet actions include a `Scheduled` parent menu with separate `Scheduled TODOs` and `Scheduled Reminders` panels, plus showing or hiding panels, switching language, importing/exporting data, importing pet zip packages, refreshing pets, switching pet styles, and quitting.
-- Right-click TODO actions use a native menu for editing, marking done, deleting, toggling the `[!]` red marker, adding/removing tags, adding notes/deadlines/sub-tasks, and moving priority up or down.
+- Right-click active TODOs to edit, mark done, delete, manage tags/notes/deadlines/sub-tasks, or adjust priority. The `Adjust Status` submenu contains `Suspend` and `Mark Red / Unmark Red`.
 - Tagged TODOs are grouped in Chrome/Edge-like colored tag groups that can be collapsed, expanded, and reordered against untagged TODOs. The tag editor offers a dropdown of existing tags from unfinished TODOs while still allowing custom tags.
 - Sub-tasks are stored under parent TODOs, can be collapsed with their parent, and must all be completed before the parent TODO can be marked done.
 - Long-press TODO sorting is supported for direct drag ordering; tagged TODOs reorder within their tag group, while tag groups and untagged TODOs reorder at the same top level.
-- Completed TODOs are rendered with strikethrough and moved to the end of the day.
+- Completed and suspended TODOs have gray strikethrough text and move to the end of their tag group or list. Suspended TODOs display a cross: click it or use `Restore` to reactivate the task. Suspended TODOs offer `Restore` and `Delete`; completed TODOs and sub-tasks offer `Undo Completion` and `Delete`, with a separator above `Delete`. Suspended tasks stay visible across days, are excluded from done/due counts, ordering and focus queues, and retain tags, notes, deadlines and sub-tasks when restored.
 - Pet state changes based on TODO state: `review` for active TODOs, `idle` when clear, `waving` on hover or after adding, and directional running while dragging.
 - Pet animations use Codex-compatible rows and frames with a calmer desktop playback cadence.
 
@@ -139,7 +139,7 @@ Rules:
 - `[done:YYYY-MM-DD]` records the local date when a TODO was completed, so legacy TODOs finished today count toward today's completed total.
 - Indented checkbox lines such as `  - [ ] Sub-task item` are sub-tasks of the parent TODO.
 - Indented plain lines such as `  - Inline note text` are notes for the parent TODO.
-- Completed items use `[x]` and strikethrough.
+- Completed items use `[x]` and strikethrough; suspended items use `[-]` and strikethrough, reverting to `[ ]` when restored.
 - Deleting a TODO removes its Markdown line.
 
 ## Scheduling

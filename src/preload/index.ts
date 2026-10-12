@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('todoPet', {
     delete: (id: string): Promise<void> => ipcRenderer.invoke('todos:delete', id),
     setCompleted: (id: string, completed: boolean): Promise<TodoItem> =>
       ipcRenderer.invoke('todos:setCompleted', id, completed),
+    setSuspended: (id: string, suspended: boolean): Promise<TodoItem> =>
+      ipcRenderer.invoke('todos:setSuspended', id, suspended),
     setHighlighted: (id: string, highlighted: boolean): Promise<TodoItem> =>
       ipcRenderer.invoke('todos:setHighlighted', id, highlighted),
     updateText: (id: string, text: string): Promise<TodoItem> => ipcRenderer.invoke('todos:updateText', id, text),

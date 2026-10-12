@@ -76,6 +76,12 @@ describe('applyEnterFocusRequest', () => {
 });
 
 describe('isFocusTargetValid', () => {
+  test('false for a suspended todo and its child', () => {
+    const paused = { ...todo('p'), suspended: true, subTasks: [{ id: 's', text: 'Child', completed: false }] };
+    expect(isFocusTargetValid(target('p'), [paused])).toBe(false);
+    expect(isFocusTargetValid({ kind: 'subtask', parentId: 'p', subTaskId: 's' }, [paused])).toBe(false);
+  });
+
   test('true for an existing incomplete todo', () => {
     expect(isFocusTargetValid(target('a'), [todo('a')])).toBe(true);
   });

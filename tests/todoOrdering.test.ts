@@ -25,6 +25,22 @@ function item(id: string, text = id, completed = false, date = '2026-05-11', tag
 }
 
 describe('todoOrdering', () => {
+  test('puts suspended and completed todos at the end of their group and excludes them from reordering', () => {
+    const paused = { ...item('paused', 'paused', false, '2026-05-11', 'work'), suspended: true };
+    const done = item('done', 'done', true, '2026-05-11', 'work');
+    const items = [paused, done, item('active', 'active', false, '2026-05-11', 'work'), item('plain')];
+    const units = buildTodoListUnits(items);
+    expect(units[0].type === 'tag-group' ? units[0].items.map((todo) => todo.id) : []).toEqual(['active', 'paused', 'done']);
+    expect(flattenActiveUnitIds(units)).toEqual(['active', 'plain']);
+    expect(moveTodoStep(items, 'paused', 'up')).toBe(items);
+    expect(moveTodoRelative(items, 'active', 'paused', 'after')).toBe(items);
+  });
+
+  test('puts suspended untagged todos after active top-level units', () => {
+    const items = [{ ...item('paused'), suspended: true }, item('active'), item('done', 'done', true)];
+    expect(buildTodoListUnits(items).map((unit) => unit.id)).toEqual(['todo:active', 'todo:paused', 'todo:done']);
+  });
+
   test('moves a todo one step down without crossing completed todos', () => {
     const items = [item('a'), item('b'), item('c'), item('done', 'done', true)];
 

@@ -1,4 +1,5 @@
 import type { TodoItem } from '../../shared/types';
+import { isTodoActive } from '../../shared/todoState';
 
 /**
  * A target for the focus panel. Reminders only ever produce `todo` targets,
@@ -33,11 +34,11 @@ export function focusKey(target: FocusTarget): string {
 export function isFocusTargetValid(target: FocusTarget, todos: TodoItem[]): boolean {
   if (target.kind === 'todo') {
     const item = todos.find((t) => t.id === target.id);
-    return !!item && !item.completed;
+    return !!item && isTodoActive(item);
   }
   const parent = todos.find((t) => t.id === target.parentId);
   const sub = parent?.subTasks.find((s) => s.id === target.subTaskId);
-  return !!sub && !sub.completed;
+  return !!parent && !parent.suspended && !!sub && !sub.completed;
 }
 
 /**

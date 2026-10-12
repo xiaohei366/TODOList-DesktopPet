@@ -1,3 +1,4 @@
+import { buildTodoMenuTemplate, buildSubTaskMenuTemplate } from './todoMenu';
 import {
   app,
   BrowserWindow,
@@ -507,61 +508,7 @@ function showTodoMenu(payload: { point?: { x: number; y: number }; item: TodoIte
   }
 
   const { item, point } = payload;
-  const menu = Menu.buildFromTemplate([
-    {
-      label: tr('menu.edit'),
-      click: () => sendTodoMenuAction({ type: 'edit', id: item.id })
-    },
-    {
-      label: tr('focus.enter'),
-      click: () => sendTodoMenuAction({ type: 'enter-focus', id: item.id })
-    },
-    { type: 'separator' },
-    {
-      label: item.completed ? tr('menu.markActive') : tr('menu.markDone'),
-      click: () => sendTodoMenuAction({ type: 'toggle-completed', id: item.id })
-    },
-    {
-      label: item.deadline ? tr('menu.changeDeadline') : tr('menu.setDeadline'),
-      click: () => sendTodoMenuAction({ type: 'set-deadline', id: item.id })
-    },
-    {
-      label: item.highlighted ? tr('menu.unmarkRed') : tr('menu.markRed'),
-      click: () => sendTodoMenuAction({ type: 'toggle-highlighted', id: item.id })
-    },
-    {
-      label: tr('menu.adjustPriority'),
-      enabled: !item.completed,
-      submenu: [
-        {
-          label: tr('menu.moveUp'),
-          click: () => sendTodoMenuAction({ type: 'move-up', id: item.id })
-        },
-        {
-          label: tr('menu.moveDown'),
-          click: () => sendTodoMenuAction({ type: 'move-down', id: item.id })
-        }
-      ]
-    },
-    { type: 'separator' },
-    {
-      label: tr('menu.editNotes'),
-      click: () => sendTodoMenuAction({ type: 'edit-notes', id: item.id })
-    },
-    {
-      label: tr('menu.editTag'),
-      click: () => sendTodoMenuAction({ type: 'edit-tag', id: item.id })
-    },
-    {
-      label: tr('menu.addSubTask'),
-      click: () => sendTodoMenuAction({ type: 'add-sub-task', id: item.id })
-    },
-    { type: 'separator' },
-    {
-      label: tr('menu.delete'),
-      click: () => sendTodoMenuAction({ type: 'delete', id: item.id })
-    }
-  ]);
+  const menu = Menu.buildFromTemplate(buildTodoMenuTemplate(item, tr, sendTodoMenuAction));
 
   menu.popup({ window: mainWindow, x: point?.x, y: point?.y });
 }
@@ -579,44 +526,7 @@ function showSubTaskMenu(payload: { point?: { x: number; y: number }; parentId: 
   }
 
   const { parentId, subTask, point } = payload;
-  const menu = Menu.buildFromTemplate([
-    {
-      label: tr('menu.edit'),
-      click: () => sendSubTaskMenuAction({ type: 'edit', parentId, subTaskId: subTask.id })
-    },
-    {
-      label: tr('focus.enter'),
-      click: () => sendSubTaskMenuAction({ type: 'enter-focus', parentId, subTaskId: subTask.id })
-    },
-    { type: 'separator' },
-    {
-      label: subTask.completed ? tr('menu.markActive') : tr('menu.markDone'),
-      click: () => sendSubTaskMenuAction({ type: 'toggle-completed', parentId, subTaskId: subTask.id })
-    },
-    {
-      label: subTask.deadline ? tr('menu.changeDeadline') : tr('menu.setDeadline'),
-      click: () => sendSubTaskMenuAction({ type: 'set-deadline', parentId, subTaskId: subTask.id })
-    },
-    {
-      label: tr('menu.adjustPriority'),
-      enabled: !subTask.completed,
-      submenu: [
-        {
-          label: tr('menu.moveUp'),
-          click: () => sendSubTaskMenuAction({ type: 'move-up', parentId, subTaskId: subTask.id })
-        },
-        {
-          label: tr('menu.moveDown'),
-          click: () => sendSubTaskMenuAction({ type: 'move-down', parentId, subTaskId: subTask.id })
-        }
-      ]
-    },
-    { type: 'separator' },
-    {
-      label: tr('menu.delete'),
-      click: () => sendSubTaskMenuAction({ type: 'delete', parentId, subTaskId: subTask.id })
-    }
-  ]);
+  const menu = Menu.buildFromTemplate(buildSubTaskMenuTemplate(parentId, subTask, tr, sendSubTaskMenuAction));
 
   menu.popup({ window: mainWindow, x: point?.x, y: point?.y });
 }
@@ -645,6 +555,11 @@ function registerIpc(): void {
   });
   ipcMain.handle('todos:setCompleted', async (_event, id: string, completed: boolean) => {
     const item = await todoStore.setCompleted(id, completed);
+    await sendTodosChanged();
+    return item;
+  });
+  ipcMain.handle('todos:setSuspended', async (_event, id: string, suspended: boolean) => {
+    const item = await todoStore.setSuspended(id, suspended);
     await sendTodosChanged();
     return item;
   });

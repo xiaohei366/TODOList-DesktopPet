@@ -19,6 +19,7 @@ declare global {
         add: (text: string) => Promise<TodoItem>;
         delete: (id: string) => Promise<void>;
         setCompleted: (id: string, completed: boolean) => Promise<TodoItem>;
+        setSuspended: (id: string, suspended: boolean) => Promise<TodoItem>;
         setHighlighted: (id: string, highlighted: boolean) => Promise<TodoItem>;
         updateText: (id: string, text: string) => Promise<TodoItem>;
         updateNotes: (id: string, notes: string) => Promise<TodoItem>;

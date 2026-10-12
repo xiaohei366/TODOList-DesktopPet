@@ -30,6 +30,12 @@ function subTask(id: string, completed: boolean, completedDate?: string, deadlin
 }
 
 describe('todoStats helpers', () => {
+  test('suspended parents and their incomplete children are not counted as done or due', () => {
+    const paused = { ...item('paused', '2026-05-12', false, undefined, [subTask('child', false, undefined, '2026-05-12')], '2026-05-12'), suspended: true };
+    expect(countCompletedToday([paused], '2026-05-12')).toBe(0);
+    expect(countRemainingToday([paused], '2026-05-12')).toBe(0);
+  });
+
   test('formats a local date key for today comparisons', () => {
     expect(formatLocalDateKey(new Date(2026, 4, 12))).toBe('2026-05-12');
   });
