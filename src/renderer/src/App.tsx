@@ -32,9 +32,10 @@ import {
 } from './todoOrdering';
 import { countCompletedToday, countRemainingToday, formatLocalDateKey, getNextLocalDayRefreshDelay } from './todoStats';
 import { hasExceededPetWindowDragThreshold } from './windowDrag';
-import { shouldIgnoreWindowMouseEvents } from './mousePassthrough';
+import { shouldIgnoreWindowMouseEvents, startInteractiveRectReporting } from './mousePassthrough';
 import { FocusMode } from './FocusMode';
 import { UsagePanel } from './UsagePanel';
+import { TodoStreak } from './TodoStreak';
 
 const selectedPetStorageKey = 'tolist:selected-pet';
 const petUiScaleStorageKey = 'tolist:pet-ui-scale';
@@ -51,6 +52,7 @@ export function App(): ReactElement {
   const [language, setLanguage] = useState<AppLanguage>(defaultLanguage);
   const [selectedPetId, setSelectedPetId] = useState<string>(() => localStorage.getItem(selectedPetStorageKey) ?? '');
   const [todoPanelVisible, setTodoPanelVisible] = useState(true);
+  const [windowVisible, setWindowVisible] = useState(true);
   const [usagePanelVisible, setUsagePanelVisible] = useState(false);
   const [schedulePanel, setSchedulePanel] = useState<{ visible: boolean; target: ScheduleTarget }>({
     visible: false,
@@ -111,8 +113,6 @@ export function App(): ReactElement {
   const windowDrag = useRef<{
     startX: number;
     startY: number;
-    lastX: number;
-    lastY: number;
     dragging: boolean;
     lastDirection: 'running-left' | 'running-right' | null;
   } | null>(null);
@@ -143,6 +143,34 @@ export function App(): ReactElement {
       window.removeEventListener('mousemove', handleMouseMove, true);
       window.removeEventListener('pointerleave', handlePointerLeave);
       void window.todoPet.window.setMousePassthrough(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    // macOS 穿透后收不到 mousemove：主进程靠这些矩形轮询光标恢复交互，
+    // 主进程恢复捕获时也会回推 ui:mousePassthroughChanged 同步下方缓存。
+    const rectReporting = startInteractiveRectReporting((rects, petRect) => {
+      window.todoPet.window.updateInteractiveRects(rects, petRect);
+    }, {
+      document,
+      requestAnimationFrame: (handler) => window.requestAnimationFrame(handler),
+      cancelAnimationFrame: (frame) => window.cancelAnimationFrame(frame),
+      createResizeObserver: (handler) => new ResizeObserver(handler),
+      createMutationObserver: (handler) => new MutationObserver(handler),
+      addEventListener: (type, handler) => window.addEventListener(type, handler, true),
+      removeEventListener: (type, handler) => window.removeEventListener(type, handler, true)
+    });
+    const offVisibility = window.todoPet.window.onVisibilityChanged((visible) => {
+      setWindowVisible(visible);
+      rectReporting.setVisible(visible);
+    });
+    const offPassthroughChanged = window.todoPet.window.onMousePassthroughChanged((ignore) => {
+      mousePassthrough.current = ignore;
+    });
+    return () => {
+      offVisibility();
+      rectReporting.stop();
+      offPassthroughChanged();
     };
   }, []);
 
@@ -311,8 +339,8 @@ export function App(): ReactElement {
 
       const nextScale = getPetUiScaleFromResizeDrag(
         resizeStart.current.scale,
-        event.screenX - resizeStart.current.x,
-        event.screenY - resizeStart.current.y
+        event.clientX - resizeStart.current.x,
+        event.clientY - resizeStart.current.y
       );
       setPetUiScale(nextScale);
     };
@@ -342,13 +370,6 @@ export function App(): ReactElement {
   );
   const completedTodayCount = countCompletedToday(todos, formatLocalDateKey(new Date()));
   const remainingTodayCount = countRemainingToday(todos, formatLocalDateKey(new Date()));
-  const [streakPhase, setStreakPhase] = useState<'completed' | 'remaining'>('completed');
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setStreakPhase((prev) => (prev === 'completed' ? 'remaining' : 'completed'));
-    }, 4000);
-    return () => window.clearInterval(id);
-  }, []);
   const todoUnits = useMemo(() => buildTodoListUnits(todos), [todos]);
   const visibleSchedules = useMemo(
     () => schedules.filter((rule) => rule.target === schedulePanel.target),
@@ -967,11 +988,11 @@ export function App(): ReactElement {
     const target = event.currentTarget;
     const pointerId = event.pointerId;
     target.setPointerCapture(pointerId);
+    // 启动阈值用 client 坐标:macOS 副屏位于主屏上方时 event.screenY 不可靠,
+    // 纯纵向移动的 screenY 增量恒为 0,拖拽永远无法触发(此时窗口未动,client 增量即真实增量)。
     windowDrag.current = {
-      startX: event.screenX,
-      startY: event.screenY,
-      lastX: event.screenX,
-      lastY: event.screenY,
+      startX: event.clientX,
+      startY: event.clientY,
       dragging: false,
       lastDirection: null
     };
@@ -1004,16 +1025,15 @@ export function App(): ReactElement {
       }
 
       if (!drag.dragging) {
-        if (!hasExceededPetWindowDragThreshold(drag.startX, drag.startY, moveEvent.screenX, moveEvent.screenY)) {
+        if (!hasExceededPetWindowDragThreshold(drag.startX, drag.startY, moveEvent.clientX, moveEvent.clientY)) {
           return;
         }
         drag.dragging = true;
       }
 
-      const deltaX = moveEvent.screenX - drag.lastX;
-      const deltaY = moveEvent.screenY - drag.lastY;
-      drag.lastX = moveEvent.screenX;
-      drag.lastY = moveEvent.screenY;
+      // movement 是设备级增量,不受 macOS 窗口坐标/负 Y 区域钳制影响
+      const deltaX = moveEvent.movementX;
+      const deltaY = moveEvent.movementY;
       if (deltaX !== 0 || deltaY !== 0) {
         const direction = deltaX < 0 ? 'running-left' : 'running-right';
         if (drag.lastDirection !== direction) {
@@ -1058,7 +1078,7 @@ export function App(): ReactElement {
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     setWindowMouseInputCaptured(true);
-    resizeStart.current = { x: event.screenX, y: event.screenY, scale: petUiScale };
+    resizeStart.current = { x: event.clientX, y: event.clientY, scale: petUiScale };
     setResizingPetUi(true);
   }
 
@@ -1300,7 +1320,7 @@ export function App(): ReactElement {
     <main className="pet-stage" style={{ '--pet-ui-scale': petUiScale } as CSSProperties}>
       {focusTarget && focusData ? (
         <section
-          className="todo-panel"
+          className="todo-panel todo-panel--focus"
           style={{ bottom: petBaseBottom + petBaseHeight * petUiScale + todoPetGap }}
         >
           <FocusMode
@@ -1309,6 +1329,7 @@ export function App(): ReactElement {
             completedLabel={tr('focus.completed')}
             exitLabel={tr('focus.exit')}
             toastMessage={focusToast}
+            visible={windowVisible}
             queueCount={focusQueue.length}
             queuedLabel={tr('focus.queuedCount', { count: focusQueue.length })}
             onToggleCompleted={handleFocusToggleCompleted}
@@ -1500,13 +1521,7 @@ export function App(): ReactElement {
           <div className="todo-panel__top">
             <div className="todo-panel__heading">
               <span className="todo-panel__title">TODO</span>
-              <span className="todo-panel__streak">
-                <span key={streakPhase} className="todo-panel__streak-text">
-                  {streakPhase === 'completed'
-                    ? tr('todo.completedToday', { count: completedTodayCount })
-                    : tr('todo.remainingToday', { count: remainingTodayCount })}
-                </span>
-              </span>
+              <TodoStreak completed={completedTodayCount} remaining={remainingTodayCount} language={language} visible={windowVisible} />
             </div>
             <button className="icon-button" title={tr('todo.add')} onClick={() => setComposerOpen(true)}>
               <Plus size={16} />

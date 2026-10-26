@@ -350,6 +350,17 @@ describe('persistence and scheduling', () => {
         await expect(disk.save()).rejects.toMatchObject({ code: 'encryption' });
         await expect(readFile(join(root, 'state.json'))).rejects.toMatchObject({ code: 'ENOENT' });
     });
+    it('keeps the encryption error when stored credentials cannot be decrypted', async () => {
+        const { root } = await store();
+        const connection = defaultConnection();
+        connection.gateway.baseUrl = 'https://example.test';
+        const writer = new UsageStore(root, codec);
+        writer.connections = [connection];
+        writer.setCredential(connection.id, { apiKey: 'secret' });
+        await writer.save();
+        const reader = new UsageStore(root, { ...codec, available: () => false });
+        await expect(reader.load()).rejects.toMatchObject({ code: 'encryption' });
+    });
     it('deduplicates refresh and drops deleted account results', async () => {
         const { store: disk } = await store();
         let done!: (value: any) => void;

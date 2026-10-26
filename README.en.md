@@ -1,24 +1,26 @@
-# TODOList Windows Codex Pet
+# TODOList Mac Pet
 
 [中文文档](README.md)
 
-Windows desktop pet TODO manager built with Electron, React, and TypeScript. It keeps TODO data in a readable Markdown file and reuses Codex-compatible pet packages from the local Codex pet ecosystem.
+Desktop pet TODO manager for macOS, built with Electron, React, and TypeScript, with Windows builds retained. It keeps TODO data in a readable Markdown file and reuses Codex-compatible pet packages from the local Codex pet ecosystem.
+
+Repository: [xiaohei366/TODOList-MacPet](https://github.com/xiaohei366/TODOList-MacPet). The application is still named TOList Desktop Pet and continues to use existing TODOs, pets, and settings.
 
 ## Features
 
-- Transparent always-on-top Windows desktop pet.
+- Transparent always-on-top desktop pet for Windows and macOS. On macOS it stays out of the Dock; use the menu bar tray icon to show/hide the window or quit.
+- macOS uses the floating window level so input-method candidate windows remain visible while editing TODOs, sub-tasks, tags, and notes.
+- Focus mode has a wide 10px vivid multicolor border flowing around a static white-to-pale-blue interior, with a feathered transition, blue-gray text, muted blue buttons, about 30 updates per second, and a 1.5-second cycle. Motion pauses when hidden and respects the system's reduced-motion preference. The TODO heading animates only when its text changes; interactive regions are reported on layout changes, and mouse polling and the heading timer pause while hidden.
 - Codex pet package compatibility: `pet.json` plus `spritesheet.webp`.
-- Automatic pet discovery from `%USERPROFILE%\.codex\pets`.
-- App pet discovery from `%APPDATA%\TOList\pets`.
-- npm-installed pet package discovery from `%APPDATA%\TOList\pet-packages`.
-- Markdown-backed TODO storage at `%USERPROFILE%\Documents\TOList\todos.md`.
+- Automatic discovery of Codex pets, app pets, and npm-installed pet packages (see [Platform data paths](#platform-data-paths)).
+- Markdown-backed TODO storage that can be opened from the pet context menu (see [Platform data paths](#platform-data-paths)).
 - Human-readable TODO hierarchy: year, month, day.
 - Floating TODO panel above the pet, with up to three visible items and scroll support.
 - Motivational TODO header that rotates between "X tasks completed today" and "N tasks still due today" every few seconds. The completed count covers today's finished parent TODOs and sub-tasks. The remaining count works as follows: when a parent TODO is not yet completed and has a deadline on or before today, it counts as 1 plus all of its incomplete sub-tasks; otherwise the parent is not counted, and its sub-tasks are judged independently by their own deadline (only incomplete sub-tasks with a deadline on or before today are counted). Items without a deadline are not counted.
 - Automatic local-day refresh so yesterday's completed items disappear from the visible TODO panel after midnight.
 - Scheduled TODO rules for weekly recurring tasks and one-time future tasks.
-- Scheduled reminders reuse the scheduled TODO form, create a TODO when due, automatically enter its focus mode, and send a native Windows notification. If another task is already focused, the reminder queues up and enters focus once the current one exits or completes.
-- Scheduled rules are stored at `%APPDATA%\TOList\scheduled-todos.json`.
+- Scheduled reminders reuse the scheduled TODO form, create a TODO when due, automatically enter its focus mode, and send a native system notification. If another task is already focused, the reminder queues up and enters focus once the current one exits or completes.
+- Scheduled rules are stored in `scheduled-todos.json` under the platform app-data directory (see [Platform data paths](#platform-data-paths)).
 - Switchable Chinese / English native menus and TODO panels from the pet right-click menu.
 - Hover the pet's bottom-right corner to reveal a resize handle; drag it to scale the pet and TODO panel between 65% and 200%.
 - Visible system tray icon with show/hide, open raw data file, and quick quit actions in the selected language.
@@ -35,7 +37,7 @@ Windows desktop pet TODO manager built with Electron, React, and TypeScript. It 
 
 Right-click the pet and select **AI → AI Usage**, above the first separator. Use the panel gear to open local account settings. Connect Codex, Antigravity, or personal gateways with custom names. The panel separates remaining quota, reset times, expiry, and stale data. Pet keeps refreshing after the settings tab closes. Finish focus mode before switching panels.
 
-Codex and Antigravity use built-in browser sign-in. Select a platform and click **Browser sign-in**: the current tab navigates to the official authorization page, then returns to a Pet success screen. Choose **View account and usage** to continue; the account is saved automatically. No client ID, client secret, callback, or scope setup is required. Custom registrations remain optional under advanced login settings. Multiple accounts can coexist across platforms and within one platform. Use **Add account** or **Add another account**; switching platforms also starts a new draft. Signing in to the same identity and workspace updates authorization; a different identity adds an account. Settings and Pet cards show the platform, email, and workspace alongside the editable alias. Credentials use Windows system encryption and refresh independently. Live account authorization, quota access, and refresh still require verification through a real sign-in.
+Codex and Antigravity use built-in browser sign-in. Select a platform and click **Browser sign-in**: the current tab navigates to the official authorization page, then returns to a Pet success screen. Choose **View account and usage** to continue; the account is saved automatically. No client ID, client secret, callback, or scope setup is required. Custom registrations remain optional under advanced login settings. Multiple accounts can coexist across platforms and within one platform. Use **Add account** or **Add another account**; switching platforms also starts a new draft. Signing in to the same identity and workspace updates authorization; a different identity adds an account. Settings and Pet cards show the platform, email, and workspace alongside the editable alias. Credentials use OS-level encryption (Windows DPAPI / macOS Keychain) and refresh independently. Live account authorization, quota access, and refresh still require verification through a real sign-in.
 
 - **Compact panel**: the same 304px width and list height as TODO, with smaller controls and roughly two TODO rows per account. Expand an account to see every quota as a compact child row; scroll for more. Hover a quota for exact amounts and reset/expiry times.
 - **Default quota**: Codex, Antigravity, and personal gateways all show the lowest remaining percentage (for example, a weekly 18% instead of a 5-hour 63%). Raw amounts with different units are not compared, and unknown quotas are never treated as zero.
@@ -49,17 +51,29 @@ The default gateway template is **Volcengine API Gateway + VeFaaS + VMP**, requi
 Gateway Usage v1 reporting periods and personal budgets use the UTC+8 calendar. Budgets are estimates, not official balances. Other protocols use provider timestamps; custom mappings support timezone-qualified ISO dates and Unix seconds/milliseconds. Paths append literally to the Base URL: remove duplicate `/v1` prefixes when needed.
 
 
+## Platform data paths
+
+| Content | Windows | macOS |
+| --- | --- | --- |
+| TODO Markdown | `%USERPROFILE%\Documents\TOList\todos.md` | `~/Documents/TOList/todos.md` |
+| Scheduled rules / settings / AI API discovery | `%APPDATA%\TOList\` | `~/Library/Application Support/TOList/` |
+| App pets | `%APPDATA%\TOList\pets\` | `~/Library/Application Support/TOList/pets/` |
+| npm pet packages | `%APPDATA%\TOList\pet-packages\` | `~/Library/Application Support/TOList/pet-packages/` |
+| Codex pets | `%USERPROFILE%\.codex\pets\` | `~/.codex/pets/` |
+
+`%APPDATA%` is normally `C:\Users\<user>\AppData\Roaming`.
+
 ## Requirements
 
-- Windows 10 or newer.
+- Windows 10 or newer, or macOS 13+ (Apple Silicon).
 - Node.js 24+ recommended.
 - npm 11+ recommended.
 
 ## Tech Stack
 
-- Desktop runtime: Electron 39 with transparent frameless Windows `BrowserWindow`, native tray menus, IPC, and Windows topmost/mouse-passthrough integration.
+- Desktop runtime: Electron 39 with transparent frameless `BrowserWindow`, native tray menus, IPC, and OS topmost/mouse-passthrough integration (on macOS the main process polls the cursor to restore interaction, and the pet follows you across Spaces/fullscreen).
 - UI: React 19, TypeScript, CSS, and `lucide-react` icons.
-- Build tooling: Electron Vite, Vite, TypeScript compiler, and electron-builder portable Windows packaging.
+- Build tooling: Electron Vite, Vite, TypeScript compiler, and electron-builder packaging (portable Windows exe, macOS arm64 DMG).
 - Persistence: local Markdown for TODO data, JSON for scheduled TODO rules and app settings.
 - Pet compatibility: Codex-style `pet.json` plus `spritesheet.webp` atlas loading, zip import via JSZip, and custom `todolist-pet://` asset protocol.
 - Testing: Vitest unit tests for Markdown storage, scheduling, pet registry, ordering, localization, window behavior, and animation helpers.
@@ -68,46 +82,50 @@ Gateway Usage v1 reporting periods and personal budgets use the UTC+8 calendar. 
 
 Install dependencies:
 
-```powershell
+```bash
 npm install
 ```
 
 Run the app in development mode:
 
-```powershell
+```bash
 npm run dev
 ```
 
 Run tests:
 
-```powershell
+```bash
 npm test
 ```
 
 Run TypeScript checking:
 
-```powershell
+```bash
 npm run typecheck
 ```
 
-Build a portable Windows executable:
+Build the installer for the current platform (portable Windows exe / macOS arm64 DMG):
 
-```powershell
+```bash
 npm run build
 ```
 
-The portable executable is generated at:
+Artifacts are generated at:
 
 ```text
-release/TOList-Desktop-Pet-0.4.0.exe
+release/TOList-Desktop-Pet-0.5.5.exe   (Windows)
+release/TOList-Desktop-Pet-0.5.5.dmg   (macOS)
 ```
+
+The macOS build is a locally ad-hoc-signed, non-notarized arm64 DMG. If Gatekeeper blocks the first launch, right-click the app and choose **Open**. Distributing it to others requires Developer ID signing and notarization.
 
 ## Markdown TODO Format
 
 The default source file is:
 
-```powershell
-%USERPROFILE%\Documents\TOList\todos.md
+```text
+Windows:  %USERPROFILE%\Documents\TOList\todos.md
+macOS:    ~/Documents/TOList/todos.md
 ```
 
 The app stores TODOs in this format:
@@ -148,14 +166,14 @@ Right-click the pet and open `Scheduled`, then choose `Scheduled TODOs` or `Sche
 
 - Weekly rules can run on selected weekdays at a required hour and minute.
 - One-time rules can run on a specific future date at a required hour and minute, then remove themselves after generating the TODO.
-- A scheduled TODO creates the TODO in the background. A scheduled reminder also opens that TODO in focus mode and sends a native Windows notification; clicking the notification returns to the focused TODO. If a reminder fires while another task is focused, it queues and automatically enters focus after the current one exits or completes; the focus panel shows how many tasks are queued.
+- A scheduled TODO creates the TODO in the background. A scheduled reminder also opens that TODO in focus mode and sends a native system notification; clicking the notification returns to the focused TODO. If a reminder fires while another task is focused, it queues and automatically enters focus after the current one exits or completes; the focus panel shows how many tasks are queued.
 - New schedule forms default to the local date and time when the panel is opened.
 - Hours are limited to `0-23`, minutes to `0-59`, and dates must be real calendar dates such as February 28 or February 29 in leap years.
 - Weekdays are shown as numbers `1-7` in the compact picker.
 - Missed runs are only backfilled for today. Older missed days are not created.
 - Each rule creates at most one TODO per local day.
 - Optional "Set deadline": when checked, enter N (1-9999); the generated TODO is due on the Nth day, counting the firing day as day 1 (N=1 means due today).
-- Use the pet menu to export or import both `todos.md` and `scheduled-todos.json` when moving to another Windows environment.
+- Use the pet menu to export or import both `todos.md` and `scheduled-todos.json` when moving to another computer.
 
 ## Pet Package Format
 
@@ -201,21 +219,28 @@ More installation details are in [docs/pet-pack-installation.md](docs/pet-pack-i
 Install from npm:
 
 ```powershell
+# Windows PowerShell
 npm install <pet-package> --prefix "$env:APPDATA\TOList\pet-packages"
 ```
 
-Then right-click the pet and choose `刷新宠物`.
+```bash
+# macOS
+npm install <pet-package> --prefix "$HOME/Library/Application Support/TOList/pet-packages"
+```
+
+Then right-click the pet and choose `Refresh Pets`.
 
 Install from a local zip:
 
 1. Create a zip containing `pet.json` and `spritesheet.webp`.
 2. Right-click the pet.
-3. Choose `导入宠物 Zip`.
+3. Choose `Import Pet Zip`.
 
 Reuse existing Codex pets by placing them under:
 
-```powershell
-%USERPROFILE%\.codex\pets
+```text
+Windows:  %USERPROFILE%\.codex\pets
+macOS:    ~/.codex/pets
 ```
 
 ## Project Structure
@@ -231,4 +256,4 @@ docs/                 Pet package installation documentation
 
 ## Current Scope
 
-This is a local-first Windows desktop app. It does not include account sync, cloud storage, push notifications, or an emotional/personality system.
+This is a local-first desktop app. It does not include account sync, cloud storage, push notifications, or an emotional/personality system.

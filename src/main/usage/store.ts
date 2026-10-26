@@ -22,7 +22,7 @@ export class UsageStore {
             this.connections = raw.connections.map(validateConnection);
             if (raw.secrets) {
                 if (!this.codec.available())
-                    throw new UsageError('encryption', '无法解密凭据；请使用原 Windows 用户 / Credentials cannot be decrypted');
+                    throw new UsageError('encryption', '无法解密凭据；请使用原系统用户 / Credentials cannot be decrypted; use the same OS user');
                 const decrypted = JSON.parse(this.codec.decrypt(Buffer.from(raw.secrets, 'base64')));
                 for (const c of this.connections)
                     this.secrets[c.id] = parseCredential(decrypted[c.id]);
@@ -32,6 +32,8 @@ export class UsageStore {
         catch (e) {
             if ((e as NodeJS.ErrnoException).code === 'ENOENT')
                 return;
+            if (e instanceof UsageError)
+                throw e;
             throw new UsageError('storage', '用量配置无法读取，已停止写入以保护数据 / Usage storage unavailable; original data preserved');
         }
     }

@@ -7,6 +7,7 @@ export type FocusModeProps = {
   completedLabel: string;
   exitLabel: string;
   toastMessage: string | null;
+  visible?: boolean;
   queueCount?: number;
   queuedLabel?: string;
   onToggleCompleted: () => void;
@@ -17,7 +18,7 @@ const MAX_FONT_SIZE = 22;
 const MIN_FONT_SIZE = 12;
 
 export function FocusMode(props: FocusModeProps): ReactElement {
-  const { text, completed, completedLabel, exitLabel, toastMessage, queueCount, queuedLabel, onToggleCompleted, onExit } = props;
+  const { text, completed, completedLabel, exitLabel, toastMessage, visible = true, queueCount, queuedLabel, onToggleCompleted, onExit } = props;
   const textRef = useRef<HTMLParagraphElement | null>(null);
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export function FocusMode(props: FocusModeProps): ReactElement {
 
   return (
     <div className="focus-panel" role="dialog" aria-modal="true" aria-label="Focus mode">
-      <div className="focus-panel__aurora" aria-hidden="true" />
+      <div className="focus-panel__aurora" aria-hidden="true" style={{ animationPlayState: visible ? 'running' : 'paused' }} />
 
       <div className="focus-panel__content">
         {completed && (

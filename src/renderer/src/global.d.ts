@@ -1,4 +1,4 @@
-import type { EnterTodoFocusPayload, PetPackage, ScheduledTodoInput, ScheduledTodoRule, ScheduleTarget, SubTaskMenuAction, TodoItem, TodoMenuAction, TodoSubTask } from '../../shared/types';
+import type { EnterTodoFocusPayload, InteractiveRect, PetPackage, ScheduledTodoInput, ScheduledTodoRule, ScheduleTarget, SubTaskMenuAction, TodoItem, TodoMenuAction, TodoSubTask } from '../../shared/types';
 import type { AppLanguage } from '../../shared/i18n';
 import type { UsageSnapshot } from '../../shared/usage';
 
@@ -75,6 +75,9 @@ declare global {
         moveDrag: (screenX: number, screenY: number) => void;
         endDrag: () => void;
         setMousePassthrough: (ignore: boolean) => Promise<void>;
+        updateInteractiveRects: (rects: InteractiveRect[], petRect?: InteractiveRect | null) => void;
+        onMousePassthroughChanged: (listener: (ignore: boolean) => void) => () => void;
+        onVisibilityChanged: (listener: (visible: boolean) => void) => () => void;
         quit: () => Promise<void>;
       };
     };

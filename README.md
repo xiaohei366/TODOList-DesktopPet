@@ -1,24 +1,26 @@
-# TODOList Windows Codex Pet
+# TODOList Mac Pet
 
 [English](README.en.md)
 
-这是一个 Windows 桌宠 TODO 管理应用，基于 Electron、React 和 TypeScript 构建。它使用人类可读的 Markdown 文件保存 TODO，并兼容 Codex 桌宠资源格式和本地 Codex 宠物包生态。
+这是面向 macOS 的桌宠 TODO 管理应用，基于 Electron、React 和 TypeScript 构建，保留 Windows 兼容构建。它使用人类可读的 Markdown 文件保存 TODO，并兼容 Codex 桌宠资源格式和本地 Codex 宠物包生态。
+
+项目仓库：[xiaohei366/TODOList-MacPet](https://github.com/xiaohei366/TODOList-MacPet)。应用显示名称仍为 TOList Desktop Pet，已有 TODO、宠物和设置可继续使用。
 
 ## 功能
 
-- Windows 透明置顶桌宠窗口。
+- Windows / macOS 透明置顶桌宠窗口；macOS 下不占用 Dock，可通过菜单栏托盘图标显示/隐藏窗口和退出。
+- macOS 使用浮动置顶层级，编辑 TODO、子任务、标签或备注时，输入法候选窗可正常显示在面板上方。
+- 专注面板使用加宽至 10px 的高饱和彩色流动边框，约每秒更新 30 次、1.5 秒环绕一圈，边框内侧以静态柔化层过渡到白色至浅蓝的静态底色，配蓝灰文字和雾蓝按钮；隐藏窗口时暂停动效，遵循系统“减少动态效果”设置。TODO 标题仅在文字切换时播放动效；交互区域随布局变化上报，隐藏窗口时暂停鼠标轮询和标题计时。
 - 兼容 Codex 宠物包：`pet.json` 加 `spritesheet.webp`。
-- 自动读取 `%USERPROFILE%\.codex\pets` 下的 Codex 宠物。
-- 自动读取 `%APPDATA%\TOList\pets` 下的应用内宠物。
-- 自动读取 `%APPDATA%\TOList\pet-packages` 下通过 npm 安装的宠物包。
-- TODO 默认保存到 `%USERPROFILE%\Documents\TOList\todos.md`。
+- 自动读取 Codex 宠物、应用内宠物和通过 npm 安装的宠物包（各平台路径见[平台数据路径](#平台数据路径)）。
+- TODO 默认保存为 Markdown，并可在右键菜单中直接打开源文件（路径见[平台数据路径](#平台数据路径)）。
 - Markdown 使用年、月、日三级标题组织，适合直接手写和阅读。
 - 宠物头顶显示 TODO 面板，最多可见三条，超出后在面板内滚动。
 - TODO 标题栏会轮播显示激励文字，先展示“今日已完成 X 个任务”，几秒后切换为“今日仍需完成 N 个任务”。完成数统计今日完成的父 TODO 项与子任务；剩余数规则为：父 TODO 未完成且设置了截止日期且截止日期不晚于今日时，父项计 1 加上其全部未完成子任务；否则父项不计入，子任务按自身截止日期独立判断（未完成且截止日期不晚于今日才计入）；未设置截止日期的项不计入。
 - 会在本地日期切换后自动刷新 TODO 面板，昨日完成项会自动从可见列表移除。
 - 支持定时 TODO 规则，可创建每周重复任务和一次性未来任务。
-- 支持定时提醒；到点后会创建 TODO、自动进入该项专注模式，并发送 Windows 原生通知；若当前已在专注其他任务，提醒会排队，待当前专注退出或完成后依次进入。
-- 定时规则保存到 `%APPDATA%\TOList\scheduled-todos.json`。
+- 支持定时提醒；到点后会创建 TODO、自动进入该项专注模式，并发送系统原生通知；若当前已在专注其他任务，提醒会排队，待当前专注退出或完成后依次进入。
+- 定时规则保存在应用数据目录的 `scheduled-todos.json`（各平台路径见[平台数据路径](#平台数据路径)）。
 - 原生菜单和 TODO 面板支持中文 / English 切换。
 - 鼠标移动到宠物右下角会显示直角缩放柄，拖动后可在 65% 到 200% 之间同步缩放宠物和 TODO 框。
 - 系统托盘会显示可见图标，支持显示/隐藏窗口、打开存储数据的原始文件和快速退出。
@@ -35,7 +37,7 @@
 
 右键 Pet，在第一个分割线上方选择 **AI相关 → AI 用量**。点击面板齿轮打开本机配置网页，添加 Codex、Antigravity 或自定义名称的个人网关。面板与 TODO 同宽（304px）并使用紧凑按钮，每个账号摘要约两个 TODO 项高度；关闭网页后仍由 Pet 后台刷新。专注期间请先结束专注再切换面板。
 
-Codex、Antigravity 默认使用内置浏览器登录：选择平台后点击「浏览器登录」，当前设置页会直接跳转至官方授权页；登录完成后回到 Pet 的成功展示页，点击「查看账号与用量」继续设置，新账号自动保存并查询额度。无需填写 Client ID、Client Secret、回调地址或 scopes；自定义注册仅在高级登录设置中使用。支持跨平台及同平台多账号：点击「添加账号」或「添加另一个账号」，切换平台也会创建新账号草稿。相同身份与工作区重新登录只更新授权，不同身份自动新增，已有账号保留。配置页和 Pet 卡片显示平台、邮箱及工作区，自定义名称独立保留。凭据使用 Windows 系统加密，Pet 独立续期，不读取或改写其他客户端的登录文件。真实账号的授权、用量权限与续期仍需实际登录验收。
+Codex、Antigravity 默认使用内置浏览器登录：选择平台后点击「浏览器登录」，当前设置页会直接跳转至官方授权页；登录完成后回到 Pet 的成功展示页，点击「查看账号与用量」继续设置，新账号自动保存并查询额度。无需填写 Client ID、Client Secret、回调地址或 scopes；自定义注册仅在高级登录设置中使用。支持跨平台及同平台多账号：点击「添加账号」或「添加另一个账号」，切换平台也会创建新账号草稿。相同身份与工作区重新登录只更新授权，不同身份自动新增，已有账号保留。配置页和 Pet 卡片显示平台、邮箱及工作区，自定义名称独立保留。凭据使用系统级加密（Windows DPAPI / macOS Keychain），Pet 独立续期，不读取或改写其他客户端的登录文件。真实账号的授权、用量权限与续期仍需实际登录验收。
 
 - **默认展示**：Codex、Antigravity 与个人网关均选择剩余百分比最低的一项，例如周额度剩余 18%、5 小时额度剩余 63% 时展示周额度。不同单位的原始余额不直接比较；没有百分比时显示可用余额，不将未知额度算作 0。
 - **账号排序与状态**：账号名称和身份信息加粗。按住卡片摘要或左侧拖动柄即可调整账号顺序，靠近列表边缘会自动滚动；松开后保存，重启后仍保留。按 Esc 取消，也可聚焦拖动柄用上下方向键排序。暂停的账号在卡片或设置页点击「恢复并刷新」即可重新启用。
@@ -49,17 +51,29 @@ Codex、Antigravity 默认使用内置浏览器登录：选择平台后点击「
 Gateway Usage v1 的日/周/月统计与自设预算按 UTC+8 日历；预算是本地估算，不能代表官方可用余额。其他协议只采用接口返回的时间，自定义 JSON 支持带时区 ISO 或 Unix 秒/毫秒映射。路径原样拼接至 Base URL；如果 Base URL 已含 `/v1`，请将路径中的重复前缀移除。
 
 
+## 平台数据路径
+
+| 内容 | Windows | macOS |
+| --- | --- | --- |
+| TODO Markdown | `%USERPROFILE%\Documents\TOList\todos.md` | `~/Documents/TOList/todos.md` |
+| 定时规则 / 设置 / AI API 发现文件 | `%APPDATA%\TOList\` | `~/Library/Application Support/TOList/` |
+| 应用内宠物 | `%APPDATA%\TOList\pets\` | `~/Library/Application Support/TOList/pets/` |
+| npm 宠物包 | `%APPDATA%\TOList\pet-packages\` | `~/Library/Application Support/TOList/pet-packages/` |
+| Codex 宠物 | `%USERPROFILE%\.codex\pets\` | `~/.codex/pets/` |
+
+`%APPDATA%` 通常为 `C:\Users\<用户名>\AppData\Roaming`。
+
 ## 环境要求
 
-- Windows 10 或更新版本。
+- Windows 10 或更新版本，或 macOS 13+（Apple Silicon）。
 - 推荐 Node.js 24+。
 - 推荐 npm 11+。
 
 ## 技术栈
 
-- 桌面运行时：Electron 39，使用透明无边框 Windows `BrowserWindow`、原生托盘菜单、IPC，以及 Windows 置顶和鼠标穿透能力。
+- 桌面运行时：Electron 39，使用透明无边框 `BrowserWindow`、原生托盘菜单、IPC，以及系统置顶和鼠标穿透能力（macOS 由主进程轮询光标恢复交互，窗口可跨桌面/全屏空间跟随）。
 - 前端界面：React 19、TypeScript、CSS 和 `lucide-react` 图标。
-- 构建工具：Electron Vite、Vite、TypeScript 编译器，以及 electron-builder 的 Windows 便携版打包。
+- 构建工具：Electron Vite、Vite、TypeScript 编译器，以及 electron-builder 打包（Windows 便携版 exe，macOS arm64 DMG）。
 - 数据持久化：TODO 使用本地 Markdown，定时 TODO 规则和应用设置使用 JSON。
 - 宠物兼容：读取 Codex 风格的 `pet.json` 和 `spritesheet.webp` 图集，通过 JSZip 导入 zip，并用自定义 `todolist-pet://` 协议加载资源。
 - 测试：Vitest 覆盖 Markdown 存储、定时调度、宠物注册、排序、本地化、窗口行为和动画 helper。
@@ -68,46 +82,50 @@ Gateway Usage v1 的日/周/月统计与自设预算按 UTC+8 日历；预算是
 
 安装依赖：
 
-```powershell
+```bash
 npm install
 ```
 
 启动开发模式：
 
-```powershell
+```bash
 npm run dev
 ```
 
 运行测试：
 
-```powershell
+```bash
 npm test
 ```
 
 运行 TypeScript 类型检查：
 
-```powershell
+```bash
 npm run typecheck
 ```
 
-构建 Windows 便携版可执行文件：
+构建当前平台的安装包（Windows 便携版 exe / macOS arm64 DMG）：
 
-```powershell
+```bash
 npm run build
 ```
 
-构建后的便携版可执行文件位于：
+构建产物位于：
 
 ```text
-release/TOList-Desktop-Pet-0.4.0.exe
+release/TOList-Desktop-Pet-0.5.5.exe   (Windows)
+release/TOList-Desktop-Pet-0.5.5.dmg   (macOS)
 ```
+
+macOS 构建为 arm64、ad-hoc 签名的本地 DMG（未公证）。若首次打开被 Gatekeeper 拦截，可右键应用选择“打开”；对外分发前需自行配置 Developer ID 签名与公证。
 
 ## Markdown TODO 格式
 
 默认源文件路径：
 
-```powershell
-%USERPROFILE%\Documents\TOList\todos.md
+```text
+Windows:  %USERPROFILE%\Documents\TOList\todos.md
+macOS:    ~/Documents/TOList/todos.md
 ```
 
 应用保存格式如下：
@@ -148,7 +166,7 @@ release/TOList-Desktop-Pet-0.4.0.exe
 
 - 每周规则可选择星期，并在指定小时和分钟自动创建 TODO。
 - 一次性规则可选择未来日期，并在指定小时和分钟自动创建 TODO；生成后规则会自动删除。
-- 定时 TODO 会在后台创建任务；定时提醒还会自动进入新任务的专注模式并发送 Windows 原生通知，点击通知可重新聚焦该任务。若提醒触发时正在专注其他任务，新提醒会进入排队，当前专注退出或完成后自动依次进入；专注面板会显示排队中的任务数。
+- 定时 TODO 会在后台创建任务；定时提醒还会自动进入新任务的专注模式并发送系统原生通知，点击通知可重新聚焦该任务。若提醒触发时正在专注其他任务，新提醒会进入排队，当前专注退出或完成后自动依次进入；专注面板会显示排队中的任务数。
 - 新增定时规则时，日期和时间会默认使用打开面板时的本地日期时间。
 - 小时限制为 `0-23`，分钟限制为 `0-59`，日期必须是真实日历日期，例如平年 2 月 28 日、闰年 2 月 29 日。
 - 紧凑星期选择器使用数字 `1-7` 显示。
@@ -201,7 +219,13 @@ Spritesheet 要求：
 通过 npm 安装：
 
 ```powershell
+# Windows PowerShell
 npm install <pet-package> --prefix "$env:APPDATA\TOList\pet-packages"
+```
+
+```bash
+# macOS
+npm install <pet-package> --prefix "$HOME/Library/Application Support/TOList/pet-packages"
 ```
 
 安装后右键桌宠，选择 `刷新宠物`。
@@ -214,8 +238,9 @@ npm install <pet-package> --prefix "$env:APPDATA\TOList\pet-packages"
 
 复用已有 Codex 宠物：
 
-```powershell
-%USERPROFILE%\.codex\pets
+```text
+Windows:  %USERPROFILE%\.codex\pets
+macOS:    ~/.codex/pets
 ```
 
 ## 项目结构
@@ -231,4 +256,4 @@ docs/                 宠物包安装文档
 
 ## 当前范围
 
-这是一个本地优先的 Windows 桌面应用。当前不包含账号同步、云存储、推送通知或情感/人格系统。
+这是一个本地优先的桌面应用。当前不包含账号同步、云存储、推送通知或情感/人格系统。

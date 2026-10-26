@@ -1,5 +1,9 @@
 /* FocusMode - aurora gradient focus panel */
 
+.todo-panel.todo-panel--focus {
+  backdrop-filter: none;
+}
+
 .focus-panel {
   position: relative;
   display: flex;
@@ -11,69 +15,68 @@
   overflow: hidden;
   border-radius: 8px;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: #ffffff;
+  --focus-surface: linear-gradient(145deg, #ffffff, #eef6ff);
+  --focus-ink: #294761;
+  color: var(--focus-ink);
+  background: var(--focus-surface);
+  isolation: isolate;
+  animation: focus-panel-enter 240ms ease-out;
+}
+
+.focus-panel::before {
+  content: '';
+  position: absolute;
+  inset: 10px;
+  z-index: 1;
+  border-radius: 6px;
+  background: var(--focus-surface);
+  filter: blur(3px);
+  pointer-events: none;
 }
 
 .focus-panel__aurora {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  width: 150%;
+  aspect-ratio: 1;
   z-index: 0;
-  background-image: linear-gradient(
-    135deg,
-    #FF0080,
-    #FF8C00,
-    #FFD700,
-    #00E676,
-    #00B0FF,
-    #7C4DFF,
-    #FF0080
+  background-image: conic-gradient(
+    #f72f8a,
+    #ff8f2b,
+    #ffcf32,
+    #16cfa0,
+    #2b88f5,
+    #8b45f0,
+    #f72f8a
   );
-  background-size: 200% auto;
-  background-position: 0% 50%;
-  filter: blur(8px);
-  transform: scale(1.1);
-  animation: focus-aurora 4s ease-in-out infinite alternate;
-}
-
-.focus-panel__aurora::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(0, 0, 0, 0) 0%,
-    rgba(0, 0, 0, 0.2) 55%,
-    rgba(0, 0, 0, 0.5) 100%
-  );
+  transform: translate3d(-50%, -50%, 0);
+  will-change: transform;
   pointer-events: none;
+  /* Rotate a cached color wheel at 30 updates/sec; the solid inset leaves only its rim visible. */
+  animation: focus-border-flow 1.5s steps(45) infinite;
 }
 
-@keyframes focus-aurora {
-  0% {
-    background-position: 0% 50%;
-    transform: scale(1.08) rotate(-6deg);
+@keyframes focus-border-flow {
+  from { transform: translate3d(-50%, -50%, 0) rotate(0turn); }
+  to { transform: translate3d(-50%, -50%, 0) rotate(1turn); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-panel__aurora {
+    animation: none;
+    will-change: auto;
   }
-  25% {
-    background-position: 50% 100%;
-    transform: scale(0.92) rotate(0deg);
-  }
-  50% {
-    background-position: 100% 50%;
-    transform: scale(1.08) rotate(6deg);
-  }
-  75% {
-    background-position: 50% 0%;
-    transform: scale(0.92) rotate(0deg);
-  }
-  100% {
-    background-position: 0% 50%;
-    transform: scale(1.08) rotate(-6deg);
-  }
+}
+
+@keyframes focus-panel-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .focus-panel__content {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -84,13 +87,7 @@
   height: 110px;
   padding: 10px 12px;
   border-radius: 14px;
-  background: rgba(8, 8, 18, 0.42);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 12px 36px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: transparent;
 }
 
 .focus-panel__badge {
@@ -103,11 +100,9 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: #d1fae5;
-  background: rgba(16, 185, 129, 0.18);
-  border: 1px solid rgba(16, 185, 129, 0.35);
-  box-shadow: 0 0 14px rgba(16, 185, 129, 0.2);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  color: #3e6387;
+  background: rgba(76, 115, 152, 0.1);
+  border: 1px solid rgba(76, 115, 152, 0.2);
 }
 
 .focus-panel__badge-icon {
@@ -121,11 +116,8 @@
   font-size: 22px;
   font-weight: 700;
   line-height: 1.25;
-  color: #ffffff;
-  text-shadow:
-    0 0 10px rgba(255, 255, 255, 0.35),
-    0 2px 12px rgba(0, 0, 0, 0.55),
-    0 4px 24px rgba(0, 0, 0, 0.4);
+  color: var(--focus-ink);
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.65);
   word-wrap: break-word;
   overflow-wrap: break-word;
   max-width: 100%;
@@ -136,16 +128,16 @@
 }
 
 .focus-panel__text--completed {
-  color: #e5f9ef;
+  color: #536c82;
   text-decoration: line-through;
-  text-decoration-color: rgba(16, 185, 129, 0.6);
+  text-decoration-color: rgba(76, 115, 152, 0.6);
   text-decoration-thickness: 3px;
-  opacity: 0.92;
+  opacity: 1;
 }
 
 .focus-panel__buttons {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   flex-direction: row;
@@ -157,17 +149,16 @@
 
 .focus-panel__queue {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   margin: 6px 0 0;
   padding: 3px 12px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.02em;
-  color: #cfe9ff;
-  background: rgba(0, 176, 255, 0.18);
-  border: 1px solid rgba(0, 176, 255, 0.32);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  color: #48657e;
+  background: rgba(76, 115, 152, 0.08);
+  border: 1px solid rgba(76, 115, 152, 0.16);
   text-align: center;
 }
 
@@ -179,12 +170,10 @@
   font-size: 12px;
   font-weight: 500;
   text-align: center;
-  color: #fef3c7;
-  background: rgba(217, 119, 6, 0.32);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(251, 191, 36, 0.35);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  color: #725a25;
+  background: #f5ecd4;
+  border: 1px solid rgba(155, 126, 65, 0.24);
+  box-shadow: 0 3px 10px rgba(80, 70, 40, 0.08);
   animation: focus-toast-in 280ms ease-out;
 }
 
@@ -221,8 +210,10 @@
   outline: none;
 }
 
-.focus-panel__button:focus-visible {
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+.focus-panel .focus-panel__button:focus-visible {
+  outline: 2px solid #294761;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 3px #ffffff;
 }
 
 .focus-panel__button:hover {
@@ -240,47 +231,37 @@
 }
 
 .focus-panel__button--primary {
-  color: #ffffff;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  box-shadow:
-    0 6px 18px rgba(16, 185, 129, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  color: #f5faf7;
+  background: #4c7398;
+  box-shadow: 0 3px 9px rgba(41, 71, 97, 0.14);
 }
 
 .focus-panel__button--primary:hover {
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-  box-shadow:
-    0 10px 26px rgba(16, 185, 129, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  background: #466c90;
+  box-shadow: 0 5px 12px rgba(41, 71, 97, 0.18);
 }
 
 .focus-panel__button--primary-active {
-  color: #ffffff;
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  box-shadow:
-    0 6px 18px rgba(245, 158, 11, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  color: #3d5e7b;
+  background: #d4e4f3;
+  box-shadow: 0 3px 9px rgba(41, 71, 97, 0.1);
 }
 
 .focus-panel__button--primary-active:hover {
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-  box-shadow:
-    0 10px 26px rgba(245, 158, 11, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  background: #c7dbed;
+  box-shadow: 0 5px 12px rgba(41, 71, 97, 0.14);
 }
 
 .focus-panel__button--secondary {
-  color: rgba(255, 255, 255, 0.92);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #48647d;
+  background: rgba(76, 115, 152, 0.08);
+  border: 1px solid rgba(76, 115, 152, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .focus-panel__button--secondary:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.3);
-  box-shadow:
-    0 6px 18px rgba(0, 0, 0, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  color: #304f6b;
+  background: rgba(76, 115, 152, 0.12);
+  border-color: rgba(76, 115, 152, 0.24);
+  box-shadow: 0 3px 9px rgba(41, 71, 97, 0.08);
 }

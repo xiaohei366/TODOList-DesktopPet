@@ -1,7 +1,7 @@
 {
   "name": "todolist-desktop-pet",
-  "version": "0.5.0",
-  "description": "A Windows desktop pet TODOList app compatible with Codex pet packages.",
+  "version": "0.5.5",
+  "description": "A macOS desktop pet TODOList app compatible with Codex pet packages, with Windows builds retained.",
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
@@ -9,9 +9,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "clean": "node -e \"const fs=require('node:fs'),p=require('node:path');if(fs.existsSync('release')){for(const f of fs.readdirSync('release')){try{fs.rmSync(p.join('release',f),{recursive:true,force:true})}catch{}}}\"",
-    "clean:release": "node -e \"const fs=require('node:fs'),path=require('node:path');if(fs.existsSync('release')){for(const name of fs.readdirSync('release')){if(!name.endsWith('.exe'))fs.rmSync(path.join('release',name),{recursive:true,force:true});}}\"",
-    "kill-app": "node scripts/kill-app.js",
-"build": "npm run kill-app && npm run clean && npm run typecheck && electron-vite build && electron-builder --win portable --publish never && npm run clean:release"
+    "clean:release": "node -e \"const fs=require('node:fs'),path=require('node:path');if(fs.existsSync('release')){for(const name of fs.readdirSync('release')){if(!name.endsWith('.exe')&&!name.endsWith('.dmg'))fs.rmSync(path.join('release',name),{recursive:true,force:true});}}\"",
+    "kill-app": "node scripts/kill-app.cjs",
+    "build": "node scripts/build.cjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",
@@ -53,6 +53,23 @@
       "target": [
         "portable"
       ]
+    },
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity",
+      "minimumSystemVersion": "13.0",
+      "identity": "-",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "extendInfo": {
+        "LSUIElement": true
+      }
     }
   }
 }

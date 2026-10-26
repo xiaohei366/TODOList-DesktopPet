@@ -42,8 +42,9 @@ Animation row order:
 
 The app automatically scans:
 
-```powershell
-%USERPROFILE%\.codex\pets
+```text
+Windows:  %USERPROFILE%\.codex\pets
+macOS:    ~/.codex/pets
 ```
 
 Any existing Codex pet folder under that path is available in the desktop pet right-click menu after the app starts or after choosing `Refresh Pets`.
@@ -53,17 +54,25 @@ Any existing Codex pet folder under that path is available in the desktop pet ri
 Install a community pet package into the app package root:
 
 ```powershell
+# Windows PowerShell
 npm install <pet-package> --prefix "$env:APPDATA\TOList\pet-packages"
 ```
 
-The app scans these npm package shapes:
+```bash
+# macOS
+npm install <pet-package> --prefix "$HOME/Library/Application Support/TOList/pet-packages"
+```
+
+The app scans these npm package shapes under `<app-data>/TOList/pet-packages`:
 
 ```text
-%APPDATA%\TOList\pet-packages\node_modules\<pet-package>\pet.json
-%APPDATA%\TOList\pet-packages\node_modules\<pet-package>\pets\<pet-id>\pet.json
-%APPDATA%\TOList\pet-packages\node_modules\@scope\<pet-package>\pet.json
-%APPDATA%\TOList\pet-packages\node_modules\@scope\<pet-package>\pets\<pet-id>\pet.json
+node_modules/<pet-package>/pet.json
+node_modules/<pet-package>/pets/<pet-id>/pet.json
+node_modules/@scope/<pet-package>/pet.json
+node_modules/@scope/<pet-package>/pets/<pet-id>/pet.json
 ```
+
+`<app-data>` is `%APPDATA%` on Windows and `~/Library/Application Support` on macOS.
 
 After installation, right-click the pet and choose `Refresh Pets`.
 
@@ -80,8 +89,9 @@ Then right-click the desktop pet and choose `Import Pet Zip`.
 
 Imported pets are unpacked to:
 
-```powershell
-%APPDATA%\TOList\pets\<pet-id>
+```text
+Windows:  %APPDATA%\TOList\pets\<pet-id>
+macOS:    ~/Library/Application Support/TOList/pets/<pet-id>
 ```
 
 You can also manually unzip a pet folder there and choose `Refresh Pets`.
@@ -90,8 +100,8 @@ You can also manually unzip a pet folder there and choose `Refresh Pets`.
 
 When multiple packages use the same `id`, the app keeps the first match in this order:
 
-1. `%APPDATA%\TOList\pets`
-2. `%USERPROFILE%\.codex\pets`
-3. `%APPDATA%\TOList\pet-packages`
+1. App pets (`<app-data>/TOList/pets`)
+2. Codex pets (`~/.codex/pets`; `%USERPROFILE%\.codex\pets` on Windows)
+3. npm pet packages (`<app-data>/TOList/pet-packages`)
 
 Use unique `id` values for community packages to avoid conflicts.

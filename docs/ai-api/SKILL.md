@@ -12,6 +12,7 @@ TOList 桌宠（Electron 桌面应用）在运行时内置了一个只监听 `12
 端口和令牌每次启动应用都会变化，先从发现文件读取：
 
 - Windows：`%APPDATA%\TOList\ai-api.json`（即 `C:\Users\<用户名>\AppData\Roaming\TOList\ai-api.json`）
+- macOS：`~/Library/Application Support/TOList/ai-api.json`
 
 ```json
 { "port": 27182, "token": "<48位hex>", "updatedAt": "..." }
@@ -63,7 +64,11 @@ TOList 桌宠（Electron 桌面应用）在运行时内置了一个只监听 `12
 
 ```bash
 # bash / curl（先读发现文件）
-INFO="$APPDATA/TOList/ai-api.json"   # Git Bash；CMD/PowerShell 用 %APPDATA% 或 $env:APPDATA
+if [[ "$OSTYPE" == darwin* ]]; then
+  INFO="$HOME/Library/Application Support/TOList/ai-api.json"
+else
+  INFO="$APPDATA/TOList/ai-api.json"   # Git Bash；CMD/PowerShell 用 %APPDATA% 或 $env:APPDATA
+fi
 PORT=$(node -p "require('$INFO').port")
 TOKEN=$(node -p "require('$INFO').token")
 
@@ -85,7 +90,10 @@ curl -s -X POST "http://127.0.0.1:$PORT/api/schedules" \
 
 ```js
 // Node.js / fetch 最小封装
-const info = require(process.env.APPDATA + '/TOList/ai-api.json');
+const infoPath = process.platform === 'darwin'
+  ? `${process.env.HOME}/Library/Application Support/TOList/ai-api.json`
+  : `${process.env.APPDATA}/TOList/ai-api.json`;
+const info = require(infoPath);
 const api = async (path, body) => (await fetch(`http://127.0.0.1:${info.port}${path}`, {
   method: body ? 'POST' : 'GET',
   headers: { 'content-type': 'application/json', 'x-ai-token': info.token },

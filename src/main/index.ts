@@ -25,7 +25,19 @@ import { getAppPaths } from './paths';
 import { AppSettingsStore } from './appSettings';
 import { getNextScheduledRunDate, runDueScheduledTodos, ScheduledTodoStore } from './scheduledTodos';
 import { startAiApiServer, type AiApiServer } from './aiApi';
-import { keepPetWindowOnTop, setPetWindowMousePassthrough } from './windowLayering';
+import {
+  computeMacDragFrame,
+  computeMacExpandFrame,
+  computeMacRebaseFrame,
+  keepPetWindowOnTop,
+  MousePassthroughController,
+  naturalPetWindowHeight,
+  parseInteractiveRects,
+  parsePetRect,
+  unionOfRects,
+  petWindowMinHeight,
+  setPetWindowMousePassthrough
+} from './windowLayering';
 import { constrainWindowPosition, getWindowDragPosition, type Position, type Rect } from './windowBounds';
 import type { ImportResult, PetPackage, ScheduledTodoInput, ScheduleTarget, TodoItem, TodoMenuAction, SubTaskMenuAction, TodoSubTask } from '../shared/types';
 import { type AppLanguage, type I18nKey, defaultLanguage, languageOptions, normalizeLanguage, t } from '../shared/i18n';
@@ -56,6 +68,7 @@ let rendererReady = false;
 let pendingReminderQueue: { id: string; force: boolean }[] = [];
 const activeReminderNotifications = new Set<Notification>();
 const windowDragSessions = new WeakMap<BrowserWindow, { startBounds: Rect; startPointer: Position }>();
+const mousePassthroughControllers = new WeakMap<BrowserWindow, MousePassthroughController>();
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 
@@ -69,7 +82,8 @@ function createWindow(): void {
     width: 680,
     height: 720,
     minWidth: 680,
-    minHeight: 720,
+    // macOS 向上拖拽时通过收缩窗口让底部宠物越过屏幕顶边;其它平台保持原最小尺寸
+    minHeight: process.platform === 'darwin' ? 160 : 720,
     frame: false,
     transparent: true,
     resizable: false,
@@ -87,7 +101,34 @@ function createWindow(): void {
   });
 
   keepPetWindowOnTop(mainWindow);
-  setPetWindowMousePassthrough(mainWindow, true);
+
+  const window = mainWindow;
+  const controller = new MousePassthroughController(
+    {
+      setAlwaysOnTop: (flag, level) => window.setAlwaysOnTop(flag, level),
+      moveTop: () => window.moveTop(),
+      setIgnoreMouseEvents: (ignore, options) => window.setIgnoreMouseEvents(ignore, options),
+      getContentBounds: () => window.getContentBounds(),
+      getZoomFactor: () => window.webContents.getZoomFactor(),
+      notifyCaptureRestored: () => {
+        if (!window.isDestroyed()) {
+          window.webContents.send('ui:mousePassthroughChanged', false);
+        }
+      }
+    },
+    () => screen.getCursorScreenPoint()
+  );
+  mousePassthroughControllers.set(mainWindow, controller);
+  controller.setPassthrough(true);
+  controller.startCursorPolling();
+
+  if (process.platform === 'darwin') {
+    // 宠物需要跟随用户所在的每个 macOS 桌面,并显示在全屏应用之上
+    mainWindow.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: true
+    });
+  }
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
@@ -97,14 +138,26 @@ function createWindow(): void {
 
   mainWindow.on('closed', () => {
     rendererReady = false;
+    controller.stopCursorPolling();
     mainWindow = undefined;
   });
+  const updateVisibility = (visible: boolean): void => {
+    if (visible) controller.startCursorPolling();
+    else controller.stopCursorPolling();
+    if (!window.webContents.isDestroyed()) {
+      window.webContents.send('ui:windowVisibilityChanged', visible);
+    }
+  };
+  mainWindow.on('hide', () => updateVisibility(false));
+  mainWindow.on('minimize', () => updateVisibility(false));
   mainWindow.on('show', () => {
+    updateVisibility(true);
     if (mainWindow) {
       keepPetWindowOnTop(mainWindow);
     }
   });
   mainWindow.on('restore', () => {
+    updateVisibility(true);
     if (mainWindow) {
       keepPetWindowOnTop(mainWindow);
     }
@@ -112,7 +165,12 @@ function createWindow(): void {
 }
 
 function createTrayIcon(): Electron.NativeImage {
-  return nativeImage.createFromPath(getBundledAssetPath('icon.png')).resize({ width: 16, height: 16 });
+  const icon = nativeImage.createFromPath(getBundledAssetPath('icon.png'));
+  if (process.platform === 'darwin') {
+    // 状态栏按逻辑像素渲染:32px 位图配 2x 缩放,Retina 下仍是 16pt 清晰图标
+    return nativeImage.createFromBuffer(icon.resize({ width: 32, height: 32 }).toPNG(), { scaleFactor: 2 });
+  }
+  return icon.resize({ width: 16, height: 16 });
 }
 
 function createTray(): void {
@@ -665,6 +723,7 @@ function registerIpc(): void {
       return;
     }
     rendererReady = true;
+    event.sender.send('ui:windowVisibilityChanged', mainWindow.isVisible() && !mainWindow.isMinimized());
     sendPendingReminderFocus();
   });
   ipcMain.handle('settings:getLanguage', () => currentLanguage);
@@ -705,9 +764,13 @@ function registerIpc(): void {
     if (!window) {
       return;
     }
+    // macOS 多显示器下 renderer 上报的 event.screenY 不可靠(副屏位于主屏上方时为负值区,
+    // Chromium 会钳到 0,纵向 delta 恒为 0),统一以主进程的光标采样为准;Windows 保留原逻辑。
     windowDragSessions.set(window, {
       startBounds: window.getBounds(),
-      startPointer: { x: screenX, y: screenY }
+      startPointer: process.platform === 'darwin'
+        ? screen.getCursorScreenPoint()
+        : { x: screenX, y: screenY }
     });
     keepPetWindowOnTop(window);
   });
@@ -720,10 +783,30 @@ function registerIpc(): void {
     if (!drag) {
       return;
     }
-    const proposed = getWindowDragPosition(drag.startBounds, drag.startPointer, { x: screenX, y: screenY });
+    const cursor = process.platform === 'darwin'
+      ? screen.getCursorScreenPoint()
+      : { x: screenX, y: screenY };
+    const proposed = getWindowDragPosition(drag.startBounds, drag.startPointer, cursor);
     const display = screen.getDisplayMatching({ ...drag.startBounds, ...proposed });
     const next = constrainWindowPosition(proposed, drag.startBounds, display.workArea);
-    window.setPosition(next.x, next.y, false);
+    if (process.platform !== 'darwin') {
+      window.setPosition(next.x, next.y, false);
+      return;
+    }
+    // macOS 顶部钉死 + 底部锚定布局:越界向上时收缩窗口高度,宠物继续跟随光标
+    const bounds = window.getBounds();
+    const controller = mousePassthroughControllers.get(window);
+    const pinY = screen.getDisplayNearestPoint(cursor).workArea.y;
+    const frame = computeMacDragFrame(
+      drag.startBounds,
+      cursor.y - drag.startPointer.y,
+      pinY,
+      petWindowMinHeight(bounds.height, controller?.petRect)
+    );
+    // 横向移动不改变 frame.y/height,必须单独比较 x,否则纯水平拖动会被丢弃
+    if (next.x !== bounds.x || frame.y !== bounds.y || frame.height !== bounds.height) {
+      window.setBounds({ x: next.x, y: frame.y, width: bounds.width, height: frame.height }, false);
+    }
   });
   ipcMain.on('window:dragEnd', (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -731,6 +814,21 @@ function registerIpc(): void {
       return;
     }
     windowDragSessions.delete(window);
+    if (process.platform === 'darwin') {
+      const bounds = window.getBounds();
+      if (bounds.height !== naturalPetWindowHeight) {
+        const controller = mousePassthroughControllers.get(window);
+        const pinY = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y }).workArea.y;
+        const frame = computeMacRebaseFrame(
+          bounds.y + bounds.height,
+          pinY,
+          petWindowMinHeight(bounds.height, controller?.petRect)
+        );
+        if (frame.y !== bounds.y || frame.height !== bounds.height) {
+          window.setBounds({ x: bounds.x, y: frame.y, width: bounds.width, height: frame.height }, false);
+        }
+      }
+    }
     keepPetWindowOnTop(window);
   });
   ipcMain.handle('window:setMousePassthrough', (event, ignore: boolean) => {
@@ -738,7 +836,43 @@ function registerIpc(): void {
     if (!window) {
       return;
     }
+    const controller = mousePassthroughControllers.get(window);
+    if (controller) {
+      controller.setPassthrough(ignore);
+      return;
+    }
     setPetWindowMousePassthrough(window, ignore);
+  });
+  ipcMain.on('window:updateInteractiveRects', (event, rects: unknown, petRectValue?: unknown) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) {
+      return;
+    }
+    const controller = mousePassthroughControllers.get(window);
+    if (!controller) {
+      return;
+    }
+    const petRect = parsePetRect(petRectValue);
+    const interactiveRects = parseInteractiveRects(rects);
+    controller.updateInteractiveRects(interactiveRects, petRect);
+    // 短窗口状态下内容长高(打开面板)时扩容;拖拽中由 dragMove 掌管窗口尺寸
+    if (process.platform === 'darwin' && !windowDragSessions.has(window)) {
+      const union = unionOfRects(interactiveRects);
+      if (union) {
+        const bounds = window.getContentBounds();
+        const unionScreen = { ...union, x: bounds.x + union.x, y: bounds.y + union.y };
+        const pinY = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y }).workArea.y;
+        const frame = computeMacExpandFrame(
+          { y: bounds.y, height: bounds.height },
+          unionScreen,
+          pinY,
+          petWindowMinHeight(bounds.height, petRect)
+        );
+        if (frame.y !== bounds.y || frame.height !== bounds.height) {
+          window.setBounds({ x: bounds.x, y: frame.y, width: bounds.width, height: frame.height }, false);
+        }
+      }
+    }
   });
   ipcMain.handle('window:quit', () => app.quit());
 }
@@ -822,6 +956,13 @@ app.on('second-instance', () => {
 // 但 quit 不会取消已注册的 whenReady 回调，必须在这里显式拦住，
 // 否则第二个实例会照常跑启动逻辑（如重写 AI API 发现文件）再退出。
 if (gotSingleInstanceLock) app.whenReady().then(async () => {
+  if (process.platform === 'darwin') {
+    // 宠物常驻托盘，不占用 Dock；主菜单仍保留 editMenu，Cmd+C/V 等编辑快捷键依赖它
+    app.dock?.hide();
+    Menu.setApplicationMenu(
+      Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }])
+    );
+  }
   const paths = getAppPaths();
   todoStore = new TodoMarkdownStore(paths.todoFile);
   scheduledTodoStore = new ScheduledTodoStore(paths.scheduledTodosFile);

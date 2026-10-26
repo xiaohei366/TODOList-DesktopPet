@@ -104,25 +104,17 @@ button {
   filter: drop-shadow(0 3px 8px rgba(214, 164, 25, 0.28));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: todo-streak-fade 4s ease-in-out infinite;
+  animation: todo-streak-enter 220ms ease-out;
 }
 
-@keyframes todo-streak-fade {
-  0% {
+@keyframes todo-streak-enter {
+  from {
     opacity: 0;
     transform: translateY(4px);
   }
-  15% {
+  to {
     opacity: 1;
     transform: translateY(0);
-  }
-  85% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-4px);
   }
 }
 

@@ -9,14 +9,20 @@ npm run dev              # Start the app in dev mode (Electron + React HMR)
 npm test                 # Run all Vitest unit tests
 npx vitest run tests/foo # Run a single test file
 npm run typecheck        # TypeScript checking (tsc --noEmit)
-npm run build            # Full build: kill-app → clean → typecheck → vite build → electron-builder portable
+npm run build            # Full build: kill-app → clean → typecheck → vite build → electron-builder (per-platform)
 ```
 
-The build output is a signed portable `.exe` at `release/TOList-Desktop-Pet-0.4.0.exe`.
+The build is platform-aware (`scripts/build.cjs`): Windows produces a portable `.exe`, macOS produces an arm64 DMG at `release/TOList-Desktop-Pet-<version>.dmg` (ad-hoc signed via `identity: "-"`; falls back to `hdiutil` when electron-builder's dmg tooling cannot be downloaded).
 
 ## Architecture
 
-This is an **Electron 39** desktop app (frameless, transparent, always-on-top) with **React 19** rendering, built with **electron-vite**. The app manages TODOs as local Markdown files and shows a desktop pet with a floating TODO panel.
+**TODOList Mac Pet** (`xiaohei366/TODOList-MacPet`) is an **Electron 39** desktop app focused on **macOS**, with Windows builds retained (frameless, transparent, always-on-top). It uses **React 19** and **electron-vite**. The app manages TODOs as local Markdown files and shows a desktop pet with a floating TODO panel. The application name remains `TOList Desktop Pet`; keep the app ID and existing `TOList` data paths compatible.
+
+### Platform notes (macOS)
+
+- **Mouse passthrough**: the renderer requests `setIgnoreMouseEvents(ignore, {forward: true})`, but macOS click-through windows cannot be relied on to deliver pointer events. `MousePassthroughController` (`src/main/windowLayering.ts`) polls `screen.getCursorScreenPoint()` and restores capture when the cursor enters interactive rects the renderer reports via `window:updateInteractiveRects` (`collectInteractiveRects` in `src/renderer/src/mousePassthrough.ts`).
+- **Window dragging**: macOS renderer `event.screenY` is unreliable on displays placed above the primary one (negative Y region), so `window:dragStart`/`window:dragMove` always sample the cursor from the main process instead of using renderer coordinates. The top edge is pinned to the display work area, so upward drags shrink the window around its bottom-anchored pet (`computeMacDragFrame`), and a new drag from a shortened window must continue from that window's bottom rather than jump back to the natural height.
+- **Desktop integration**: `app.dock.hide()` + tray (Retina tray icon via 2x-scale buffer), `setVisibleOnAllWorkspaces(..., { visibleOnFullScreen: true })` so the pet follows Spaces and appears above fullscreen apps, minimal application menu (`appMenu` + `editMenu`) to keep Cmd+C/V working, and `LSUIElement` in `build.mac` so the packaged app never shows a Dock icon.
 
 ### Process model
 
@@ -28,11 +34,11 @@ This is an **Electron 39** desktop app (frameless, transparent, always-on-top) w
 
 ### Data flow
 
-- **TODO persistence**: `src/main/todoStore.ts` — reads/writes `%USERPROFILE%\Documents\TOList\todos.md` as structured Markdown (`parseTodoMarkdown` → `renderTodoMarkdown`). Changes are broadcast to the renderer via IPC (`todos:changed`).
-- **Scheduled TODOs**: `src/main/scheduledTodos.ts` — JSON persistence at `%APPDATA%\TOList\scheduled-todos.json`. A timer fires at the next due time to auto-generate TODOs from weekly/one-time rules.
-- **Pet registry**: `src/main/petRegistry.ts` — discovers pets from `.codex/pets`, `%APPDATA%\TOList\pets`, and npm-installed pet-packages. Serves spritesheets via a custom `todolist-pet://` protocol.
-- **App settings**: `src/main/appSettings.ts` — JSON at `%APPDATA%\TOList\settings.json` (language preference).
-- **AI API**: `src/main/aiApi.ts` — localhost-only (`127.0.0.1`) HTTP API for external AI tools to manage TODOs and scheduled rules. Per-startup token; discovery file at `%APPDATA%\TOList\ai-api.json`. Usage doc: `docs/ai-api/SKILL.md`.
+- **TODO persistence**: `src/main/todoStore.ts` — reads/writes `~/Documents/TOList/todos.md` (Windows: `%USERPROFILE%\Documents\TOList\todos.md`) as structured Markdown (`parseTodoMarkdown` → `renderTodoMarkdown`). Changes are broadcast to the renderer via IPC (`todos:changed`).
+- **Scheduled TODOs**: `src/main/scheduledTodos.ts` — JSON persistence at `~/Library/Application Support/TOList/scheduled-todos.json` (Windows: `%APPDATA%\TOList\scheduled-todos.json`). A timer fires at the next due time to auto-generate TODOs from weekly/one-time rules.
+- **Pet registry**: `src/main/petRegistry.ts` — discovers pets from `~/.codex/pets`, `~/Library/Application Support/TOList/pets` (Windows: `%APPDATA%\TOList\pets`), and npm-installed pet-packages. Serves spritesheets via a custom `todolist-pet://` protocol.
+- **App settings**: `src/main/appSettings.ts` — JSON at `~/Library/Application Support/TOList/settings.json` (Windows: `%APPDATA%\TOList\settings.json`) (language preference).
+- **AI API**: `src/main/aiApi.ts` — localhost-only (`127.0.0.1`) HTTP API for external AI tools to manage TODOs and scheduled rules. Per-startup token; discovery file at `~/Library/Application Support/TOList/ai-api.json` (Windows: `%APPDATA%\TOList\ai-api.json`). Usage doc: `docs/ai-api/SKILL.md`.
 - **IPC**: All renderer↔main communication goes through `ipcMain.handle` / `ipcRenderer.invoke`. The preload exposes typed methods under `window.todoPet.*`.
 - **Single instance**: `app.requestSingleInstanceLock()` prevents duplicate processes; `second-instance` event restores the existing window.
 

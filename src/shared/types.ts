@@ -145,3 +145,11 @@ export type ImportResult = {
   updated?: number;
   skipped: number;
 };
+
+/** Viewport-relative interactive region (CSS px) reported by the renderer for macOS cursor hit testing. */
+export type InteractiveRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
