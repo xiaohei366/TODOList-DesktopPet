@@ -1,10 +1,10 @@
-# TODOList Mac Pet
+# TODOList Desktop Pet
 
 [中文文档](README.md)
 
-Desktop pet TODO manager for macOS, built with Electron, React, and TypeScript, with Windows builds retained. It keeps TODO data in a readable Markdown file and reuses Codex-compatible pet packages from the local Codex pet ecosystem.
+Desktop pet TODO manager for Windows and macOS, built with Electron, React, and TypeScript. It keeps TODO data in a readable Markdown file and reuses Codex-compatible pet packages from the local Codex pet ecosystem.
 
-Repository: [xiaohei366/TODOList-MacPet](https://github.com/xiaohei366/TODOList-MacPet). The application is still named TOList Desktop Pet and continues to use existing TODOs, pets, and settings.
+Repository: [xiaohei366/TODOList-DesktopPet](https://github.com/xiaohei366/TODOList-DesktopPet). The application is named TOList Desktop Pet.
 
 ## Features
 

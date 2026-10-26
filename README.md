@@ -1,10 +1,10 @@
-# TODOList Mac Pet
+# TODOList Desktop Pet
 
 [English](README.en.md)
 
-这是面向 macOS 的桌宠 TODO 管理应用，基于 Electron、React 和 TypeScript 构建，保留 Windows 兼容构建。它使用人类可读的 Markdown 文件保存 TODO，并兼容 Codex 桌宠资源格式和本地 Codex 宠物包生态。
+这是同时支持 Windows 和 macOS 的桌宠 TODO 管理应用，基于 Electron、React 和 TypeScript 构建。它使用人类可读的 Markdown 文件保存 TODO，并兼容 Codex 桌宠资源格式和本地 Codex 宠物包生态。
 
-项目仓库：[xiaohei366/TODOList-MacPet](https://github.com/xiaohei366/TODOList-MacPet)。应用显示名称仍为 TOList Desktop Pet，已有 TODO、宠物和设置可继续使用。
+项目仓库：[xiaohei366/TODOList-DesktopPet](https://github.com/xiaohei366/TODOList-DesktopPet)。应用显示名称为 TOList Desktop Pet。
 
 ## 功能
 

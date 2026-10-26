@@ -16,7 +16,7 @@ The build is platform-aware (`scripts/build.cjs`): Windows produces a portable `
 
 ## Architecture
 
-**TODOList Mac Pet** (`xiaohei366/TODOList-MacPet`) is an **Electron 39** desktop app focused on **macOS**, with Windows builds retained (frameless, transparent, always-on-top). It uses **React 19** and **electron-vite**. The app manages TODOs as local Markdown files and shows a desktop pet with a floating TODO panel. The application name remains `TOList Desktop Pet`; keep the app ID and existing `TOList` data paths compatible.
+**TODOList Desktop Pet** (`xiaohei366/TODOList-DesktopPet`) is an **Electron 39** desktop app for **Windows and macOS** (frameless, transparent, always-on-top). It uses **React 19** and **electron-vite**. The app manages TODOs as local Markdown files and shows a desktop pet with a floating TODO panel. The application name remains `TOList Desktop Pet`; keep the app ID and existing `TOList` data paths compatible.
 
 ### Platform notes (macOS)
 
