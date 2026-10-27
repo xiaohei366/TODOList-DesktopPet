@@ -113,8 +113,8 @@ npm run build
 Artifacts are generated at:
 
 ```text
-release/TOList-Desktop-Pet-0.5.5.exe   (Windows)
-release/TOList-Desktop-Pet-0.5.5.dmg   (macOS)
+release/TOList-Desktop-Pet-0.5.6.exe   (Windows)
+release/TOList-Desktop-Pet-0.5.6.dmg   (macOS)
 ```
 
 The macOS build is a locally ad-hoc-signed, non-notarized arm64 DMG. If Gatekeeper blocks the first launch, right-click the app and choose **Open**. Distributing it to others requires Developer ID signing and notarization.
@@ -171,7 +171,9 @@ Right-click the pet and open `Scheduled`, then choose `Scheduled TODOs` or `Sche
 - Hours are limited to `0-23`, minutes to `0-59`, and dates must be real calendar dates such as February 28 or February 29 in leap years.
 - Weekdays are shown as numbers `1-7` in the compact picker.
 - Missed runs are only backfilled for today. Older missed days are not created.
+- Waking or unlocking the system immediately checks today's pending tasks. While running, the app periodically rechecks local time; editing or deleting another rule cannot discard an occurrence that is already due. Temporary read/write failures retry after 30 seconds, and concurrent rule saves do not overwrite each other.
 - Each rule creates at most one TODO per local day.
+- Reminders caught up at startup enter focus after TODO data has loaded. Simultaneous reminders enter the focus queue in order.
 - Optional "Set deadline": when checked, enter N (1-9999); the generated TODO is due on the Nth day, counting the firing day as day 1 (N=1 means due today).
 - Use the pet menu to export or import both `todos.md` and `scheduled-todos.json` when moving to another computer.
 

@@ -6,6 +6,7 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  powerMonitor,
   net,
   Notification,
   protocol,
@@ -24,6 +25,7 @@ import { PetRegistry } from './petRegistry';
 import { getAppPaths } from './paths';
 import { AppSettingsStore } from './appSettings';
 import { getNextScheduledRunDate, runDueScheduledTodos, ScheduledTodoStore } from './scheduledTodos';
+import { ScheduledTodoScheduler } from './scheduledTodoScheduler';
 import { startAiApiServer, type AiApiServer } from './aiApi';
 import {
   computeMacDragFrame,
@@ -59,7 +61,6 @@ let todoWatch: FSWatcher | undefined;
 let todoStore: TodoMarkdownStore;
 let scheduledTodoStore: ScheduledTodoStore;
 let settingsStore: AppSettingsStore;
-let scheduledTodoTimer: NodeJS.Timeout | undefined;
 let aiApiServer: AiApiServer | null = null;
 let closeUsage: (() => Promise<void>) | undefined;
 let petRegistry: PetRegistry;
@@ -879,55 +880,45 @@ function registerIpc(): void {
 
 async function runScheduledTodoCheck(): Promise<void> {
   const reminders: TodoItem[] = [];
-  const generated = await runDueScheduledTodos(
-    scheduledTodoStore,
-    todoStore,
-    new Date(),
-    (rule, todo) => {
-      if (rule.target === 'reminder') {
-        reminders.push(todo as TodoItem);
-      }
-    }
-  );
-  if (generated > 0) {
-    await sendTodosChanged();
-  }
-  reminders.forEach(showScheduledReminder);
-  await sendSchedulesChanged();
-}
-
-async function handleScheduledTodoTimer(): Promise<void> {
+  let generated = 0;
   try {
-    await runScheduledTodoCheck();
+    await runDueScheduledTodos(
+      scheduledTodoStore,
+      todoStore,
+      new Date(),
+      (rule, todo) => {
+        generated += 1;
+        if (rule.target === 'reminder') {
+          reminders.push(todo as TodoItem);
+        }
+      }
+    );
   } finally {
-    await refreshScheduledTodoTimer();
+    // A later failure must not discard reminders already generated in this batch.
+    try {
+      if (generated > 0) {
+        await sendTodosChanged();
+      }
+    } finally {
+      reminders.forEach(showScheduledReminder);
+      await sendSchedulesChanged();
+    }
   }
 }
 
-async function afterScheduleMutation(runDueNow: boolean): Promise<void> {
-  if (runDueNow) {
-    await runScheduledTodoCheck();
-  } else {
-    await sendSchedulesChanged();
-  }
-  await refreshScheduledTodoTimer();
+const scheduledTodoScheduler = new ScheduledTodoScheduler({
+  checkDue: runScheduledTodoCheck,
+  nextRun: async (now) => getNextScheduledRunDate(await scheduledTodoStore.list(), now),
+  onError: (error) => console.error('定时任务检查失败，30 秒后重试 / Scheduled task check failed; retrying in 30 seconds:', error)
+});
+
+async function afterScheduleMutation(_runDueNow: boolean): Promise<void> {
+  // Deleting another rule at the due instant must not cancel a pending occurrence.
+  await scheduledTodoScheduler.checkNow();
 }
 
-async function refreshScheduledTodoTimer(): Promise<void> {
-  if (scheduledTodoTimer) {
-    clearTimeout(scheduledTodoTimer);
-    scheduledTodoTimer = undefined;
-  }
-
-  const nextRun = getNextScheduledRunDate(await scheduledTodoStore.list());
-  if (!nextRun) {
-    return;
-  }
-
-  const delay = Math.max(1000, nextRun.getTime() - Date.now() + 1000);
-  scheduledTodoTimer = setTimeout(() => {
-    void handleScheduledTodoTimer();
-  }, Math.min(delay, 2_147_483_647));
+function recheckScheduledTodos(): void {
+  void scheduledTodoScheduler.checkNow();
 }
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -990,9 +981,10 @@ if (gotSingleInstanceLock) app.whenReady().then(async () => {
   }
   createWindow();
   createTray();
+  powerMonitor.on('resume', recheckScheduledTodos);
+  powerMonitor.on('unlock-screen', recheckScheduledTodos);
+  await scheduledTodoScheduler.checkNow();
   await startTodoWatch();
-  await runScheduledTodoCheck();
-  await refreshScheduledTodoTimer();
 });
 
 app.on('window-all-closed', () => {});
@@ -1005,8 +997,10 @@ app.on('before-quit', event => {
   if (shutdownStarted) return;
   shutdownStarted = true;
   todoWatch?.close();
-  if (scheduledTodoTimer) {
-    clearTimeout(scheduledTodoTimer);
+  scheduledTodoScheduler.stop();
+  if (app.isReady()) {
+    powerMonitor.removeListener('resume', recheckScheduledTodos);
+    powerMonitor.removeListener('unlock-screen', recheckScheduledTodos);
   }
   void Promise.allSettled([closeUsage?.(), aiApiServer?.close()]).then(() => { shutdownComplete = true; app.quit(); });
 });

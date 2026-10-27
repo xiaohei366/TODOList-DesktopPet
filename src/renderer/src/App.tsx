@@ -183,7 +183,26 @@ export function App(): ReactElement {
   }, []);
 
   useEffect(() => {
-    void window.todoPet.todos.list().then(setTodos);
+    let disposed = false;
+    let receivedTodosChange = false;
+    let ready = false;
+    const receiveTodos = (items: TodoItem[]): void => {
+      if (disposed) return;
+      todosRef.current = items;
+      setTodos(items);
+      if (!ready) {
+        ready = true;
+        void window.todoPet.ui.rendererReady();
+      }
+    };
+    const offTodos = window.todoPet.todos.onChanged((items) => {
+      receivedTodosChange = true;
+      receiveTodos(items);
+    });
+    void window.todoPet.todos.list().then((items) => {
+      // A live update can arrive while the initial disk snapshot is still pending.
+      if (!receivedTodosChange) receiveTodos(items);
+    }).catch((error) => console.error('Failed to load TODOs:', error));
     void window.todoPet.pets.list().then((loadedPets) => {
       setPets(loadedPets);
       if (!selectedPetId && loadedPets[0]) {
@@ -192,7 +211,6 @@ export function App(): ReactElement {
     });
     void window.todoPet.schedules.list().then(setSchedules);
 
-    const offTodos = window.todoPet.todos.onChanged(setTodos);
     const offSchedules = window.todoPet.schedules.onChanged(setSchedules);
     const offPets = window.todoPet.pets.onChanged((loadedPets) => {
       setPets(loadedPets);
@@ -223,6 +241,7 @@ export function App(): ReactElement {
       setUsagePanelVisible(true);
     });
     return () => {
+      disposed = true;
       offTodos();
       offSchedules();
       offPets();
@@ -240,8 +259,11 @@ export function App(): ReactElement {
         { current: focusTargetRef.current, queue: focusQueueRef.current },
         { target: { kind: 'todo', id: payload.id }, force: payload.force, exists: todoExists }
       );
+      const focusChanged = next.current !== focusTargetRef.current;
+      focusTargetRef.current = next.current;
+      focusQueueRef.current = next.queue;
       setFocusQueue(next.queue);
-      if (next.current !== focusTargetRef.current) {
+      if (focusChanged) {
         setTodoPanelVisible(true);
         setSchedulePanel((current) => ({ ...current, visible: false }));
         setComposerOpen(false);
@@ -250,7 +272,6 @@ export function App(): ReactElement {
         setFocusTarget(next.current);
       }
     });
-    void window.todoPet.ui.rendererReady();
     return offEnterTodoFocus;
   }, []);
 

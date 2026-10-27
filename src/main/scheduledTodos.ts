@@ -22,96 +22,112 @@ export type ScheduledTodoGeneratedListener = (
 ) => void | Promise<void>;
 
 export class ScheduledTodoStore {
+  private operationQueue: Promise<void> = Promise.resolve();
+
   constructor(
     private readonly filePath: string,
     private readonly clock: () => Date = () => new Date()
   ) {}
 
   async list(): Promise<ScheduledTodoRule[]> {
-    return (await this.readDocument()).rules;
+    return this.queueOperation(async () => (await this.readDocument()).rules);
   }
 
   async create(input: ScheduledTodoInput): Promise<ScheduledTodoRule> {
-    const now = this.clock().toISOString();
-    const rule = this.normalizeInput(input, {
-      id: randomUUID(),
-      createdAt: now,
-      updatedAt: now
+    return this.queueOperation(async () => {
+      const now = this.clock().toISOString();
+      const rule = this.normalizeInput(input, {
+        id: randomUUID(),
+        createdAt: now,
+        updatedAt: now
+      });
+      const document = await this.readDocument();
+      document.rules.push(rule);
+      await this.writeDocument(document);
+      return rule;
     });
-    const document = await this.readDocument();
-    document.rules.push(rule);
-    await this.writeDocument(document);
-    return rule;
   }
 
   async update(id: string, input: ScheduledTodoInput): Promise<ScheduledTodoRule> {
-    const document = await this.readDocument();
-    const existing = document.rules.find((rule) => rule.id === id);
-    if (!existing) {
-      throw new Error('定时规则不存在。');
-    }
-    const updated = this.normalizeInput(input, {
-      id,
-      createdAt: existing.createdAt,
-      updatedAt: this.clock().toISOString(),
-      lastGeneratedDate: existing.lastGeneratedDate,
-      fired: existing.kind === 'one-time' ? existing.fired : undefined,
-      target: existing.target
+    return this.queueOperation(async () => {
+      const document = await this.readDocument();
+      const existing = document.rules.find((rule) => rule.id === id);
+      if (!existing) {
+        throw new Error('定时规则不存在。');
+      }
+      const updated = this.normalizeInput(input, {
+        id,
+        createdAt: existing.createdAt,
+        updatedAt: this.clock().toISOString(),
+        lastGeneratedDate: existing.lastGeneratedDate,
+        fired: existing.kind === 'one-time' ? existing.fired : undefined,
+        target: existing.target
+      });
+      document.rules = document.rules.map((rule) => (rule.id === id ? updated : rule));
+      await this.writeDocument(document);
+      return updated;
     });
-    document.rules = document.rules.map((rule) => (rule.id === id ? updated : rule));
-    await this.writeDocument(document);
-    return updated;
   }
 
   async delete(id: string): Promise<void> {
-    const document = await this.readDocument();
-    const next = document.rules.filter((rule) => rule.id !== id);
-    if (next.length === document.rules.length) {
-      throw new Error('定时规则不存在。');
-    }
-    await this.writeDocument({ ...document, rules: next });
+    return this.queueOperation(async () => {
+      const document = await this.readDocument();
+      const next = document.rules.filter((rule) => rule.id !== id);
+      if (next.length === document.rules.length) {
+        throw new Error('定时规则不存在。');
+      }
+      await this.writeDocument({ ...document, rules: next });
+    });
   }
 
   async setEnabled(id: string, enabled: boolean): Promise<ScheduledTodoRule> {
-    const document = await this.readDocument();
-    const target = document.rules.find((rule) => rule.id === id);
-    if (!target) {
-      throw new Error('定时规则不存在。');
-    }
-    const updated = { ...target, enabled, updatedAt: this.clock().toISOString() } as ScheduledTodoRule;
-    document.rules = document.rules.map((rule) => (rule.id === id ? updated : rule));
-    await this.writeDocument(document);
-    return updated;
+    return this.queueOperation(async () => {
+      const document = await this.readDocument();
+      const target = document.rules.find((rule) => rule.id === id);
+      if (!target) {
+        throw new Error('定时规则不存在。');
+      }
+      const updated = { ...target, enabled, updatedAt: this.clock().toISOString() } as ScheduledTodoRule;
+      document.rules = document.rules.map((rule) => (rule.id === id ? updated : rule));
+      await this.writeDocument(document);
+      return updated;
+    });
   }
 
   async markGenerated(id: string, date: string): Promise<ScheduledTodoRule> {
-    const document = await this.readDocument();
-    const target = document.rules.find((rule) => rule.id === id);
-    if (!target) {
-      throw new Error('定时规则不存在。');
-    }
-    const updated = {
-      ...target,
-      lastGeneratedDate: date,
-      fired: target.kind === 'one-time' ? true : undefined
-    } as ScheduledTodoRule;
-    document.rules = document.rules.map((rule) => (rule.id === id ? updated : rule));
-    await this.writeDocument(document);
-    return updated;
+    return this.queueOperation(async () => {
+      const document = await this.readDocument();
+      const target = document.rules.find((rule) => rule.id === id);
+      if (!target) {
+        throw new Error('定时规则不存在。');
+      }
+      const updated = {
+        ...target,
+        lastGeneratedDate: date,
+        fired: target.kind === 'one-time' ? true : undefined
+      } as ScheduledTodoRule;
+      document.rules = document.rules.map((rule) => (rule.id === id ? updated : rule));
+      await this.writeDocument(document);
+      return updated;
+    });
   }
 
   async exportJson(targetPath: string): Promise<void> {
-    await this.ensureFile();
-    await copyFile(this.filePath, targetPath);
+    return this.queueOperation(async () => {
+      await this.ensureFile();
+      await copyFile(this.filePath, targetPath);
+    });
   }
 
   async readSourceContent(): Promise<string> {
-    await this.ensureFile();
-    try {
-      return await readFile(this.filePath, 'utf8');
-    } catch {
-      return '[]';
-    }
+    return this.queueOperation(async () => {
+      await this.ensureFile();
+      try {
+        return await readFile(this.filePath, 'utf8');
+      } catch {
+        return '[]';
+      }
+    });
   }
 
   async importJson(importPath: string): Promise<ImportResult> {
@@ -120,40 +136,49 @@ export class ScheduledTodoStore {
   }
 
   async importJsonFromContent(content: string): Promise<ImportResult> {
-    const imported = parseScheduleDocument(content).rules.map(normalizeStoredRule);
-    const document = await this.readDocument();
-    const next = [...document.rules];
-    const semanticKeys = new Set(next.map(semanticScheduleKey));
-    let added = 0;
-    let updated = 0;
-    let skipped = 0;
+    return this.queueOperation(async () => {
+      const imported = parseScheduleDocument(content).rules.map(normalizeStoredRule);
+      const document = await this.readDocument();
+      const next = [...document.rules];
+      const semanticKeys = new Set(next.map(semanticScheduleKey));
+      let added = 0;
+      let updated = 0;
+      let skipped = 0;
 
-    for (const rule of imported) {
-      const idIndex = next.findIndex((existing) => existing.id === rule.id);
-      if (idIndex >= 0) {
-        if (new Date(rule.updatedAt).getTime() > new Date(next[idIndex].updatedAt).getTime()) {
-          next[idIndex] = rule;
-          semanticKeys.add(semanticScheduleKey(rule));
-          updated += 1;
-        } else {
-          skipped += 1;
+      for (const rule of imported) {
+        const idIndex = next.findIndex((existing) => existing.id === rule.id);
+        if (idIndex >= 0) {
+          if (new Date(rule.updatedAt).getTime() > new Date(next[idIndex].updatedAt).getTime()) {
+            next[idIndex] = rule;
+            semanticKeys.add(semanticScheduleKey(rule));
+            updated += 1;
+          } else {
+            skipped += 1;
+          }
+          continue;
         }
-        continue;
+
+        const semanticKey = semanticScheduleKey(rule);
+        if (semanticKeys.has(semanticKey)) {
+          skipped += 1;
+          continue;
+        }
+
+        next.push(rule);
+        semanticKeys.add(semanticKey);
+        added += 1;
       }
 
-      const semanticKey = semanticScheduleKey(rule);
-      if (semanticKeys.has(semanticKey)) {
-        skipped += 1;
-        continue;
-      }
+      await this.writeDocument({ version: scheduleDocumentVersion, rules: next });
+      return { added, updated, skipped };
+    });
+  }
 
-      next.push(rule);
-      semanticKeys.add(semanticKey);
-      added += 1;
-    }
-
-    await this.writeDocument({ version: scheduleDocumentVersion, rules: next });
-    return { added, updated, skipped };
+  private queueOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.operationQueue.then(operation);
+    // Keep later operations runnable even when this caller receives an error.
+    this.operationQueue = result.then(() => undefined, () => undefined);
+    return result;
   }
 
   private normalizeInput(
@@ -299,23 +324,26 @@ function getRuleRunCandidates(rule: ScheduledTodoRule, now: Date): Date[] {
   if (!rule.enabled) {
     return [];
   }
+  const todayKey = formatDateKey(now);
   if (rule.kind === 'one-time') {
-    if (rule.fired) {
+    if (rule.fired || rule.date < todayKey || (rule.date === todayKey && rule.lastGeneratedDate === todayKey)) {
       return [];
     }
     const candidate = dateAtLocalTime(rule.date, rule.hour, rule.minute);
-    return candidate.getTime() > now.getTime() ? [candidate] : [];
+    // A timer refresh or a failed attempt must keep today's ungenerated run eligible.
+    return [candidate.getTime() <= now.getTime() ? now : candidate];
   }
 
   const candidates: Date[] = [];
   for (let offset = 0; offset <= 7; offset += 1) {
     const candidate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset, rule.hour, rule.minute);
-    if (candidate.getTime() <= now.getTime()) {
+    if (!rule.weekdays.includes(toScheduleWeekday(candidate)) || (offset === 0 && rule.lastGeneratedDate === todayKey)) {
       continue;
     }
-    if (rule.weekdays.includes(toScheduleWeekday(candidate))) {
-      candidates.push(candidate);
+    if (offset === 0 && candidate.getTime() <= now.getTime()) {
+      return [now];
     }
+    candidates.push(candidate);
   }
   return candidates;
 }

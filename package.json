@@ -1,6 +1,6 @@
 {
   "name": "todolist-desktop-pet",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "description": "A Windows/macOS desktop pet TODOList app compatible with Codex pet packages.",
   "main": "out/main/index.js",
   "type": "module",

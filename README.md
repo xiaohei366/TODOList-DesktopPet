@@ -113,8 +113,8 @@ npm run build
 构建产物位于：
 
 ```text
-release/TOList-Desktop-Pet-0.5.5.exe   (Windows)
-release/TOList-Desktop-Pet-0.5.5.dmg   (macOS)
+release/TOList-Desktop-Pet-0.5.6.exe   (Windows)
+release/TOList-Desktop-Pet-0.5.6.dmg   (macOS)
 ```
 
 macOS 构建为 arm64、ad-hoc 签名的本地 DMG（未公证）。若首次打开被 Gatekeeper 拦截，可右键应用选择“打开”；对外分发前需自行配置 Developer ID 签名与公证。
@@ -171,7 +171,9 @@ macOS:    ~/Documents/TOList/todos.md
 - 小时限制为 `0-23`，分钟限制为 `0-59`，日期必须是真实日历日期，例如平年 2 月 28 日、闰年 2 月 29 日。
 - 紧凑星期选择器使用数字 `1-7` 显示。
 - 错过的任务只补发今天已经到点的内容，不补发更早日期。
+- 系统唤醒或解锁后立即核对当天待执行的任务；运行期间会定期重新核对本地时间，修改或删除其他规则不会丢失已经到点的任务。临时读写失败会在 30 秒后重试，并发保存规则不会互相覆盖。
 - 每条规则每天最多创建一次 TODO。
+- 启动时补发的提醒会在 TODO 数据加载完成后进入专注；同时触发的多条提醒按队列依次展示。
 - 可选「设置截止日期」：勾选后填入 N（1-9999），定时生成的 TODO 以生成当天为第 1 天计算，第 N 天为截止日期（N=1 即当天截止）。
 - 迁移环境时，可通过右键菜单导出或导入 `todos.md` 和 `scheduled-todos.json`。
 

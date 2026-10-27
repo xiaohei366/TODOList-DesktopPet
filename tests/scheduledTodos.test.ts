@@ -1,8 +1,13 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { ScheduledTodoStore, runDueScheduledTodos } from '../src/main/scheduledTodos';
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return { ...actual, writeFile: vi.fn(actual.writeFile) };
+});
 
 describe('scheduled TODOs', () => {
   let dir: string;
@@ -14,7 +19,88 @@ describe('scheduled TODOs', () => {
   });
 
   afterEach(async () => {
+    vi.clearAllMocks();
     await rm(dir, { recursive: true, force: true });
+  });
+
+  test('preserves every rule when multiple callers create concurrently', async () => {
+    const store = new ScheduledTodoStore(file, () => new Date(2026, 4, 11, 9, 0));
+    const texts = Array.from({ length: 10 }, (_, index) => `Concurrent task ${index}`);
+
+    const created = await Promise.all(texts.map((text) => store.create({
+      kind: 'weekly', text, hour: 10, minute: 0, weekdays: [1]
+    })));
+
+    const reloaded = new ScheduledTodoStore(file);
+    const saved = await reloaded.list();
+    expect(saved.map((rule) => rule.text)).toEqual(texts);
+    expect(new Set(saved.map((rule) => rule.id))).toEqual(new Set(created.map((rule) => rule.id)));
+  });
+
+  test('keeps a generated marker and an unrelated rule when they are saved concurrently', async () => {
+    const store = new ScheduledTodoStore(file, () => new Date(2026, 4, 11, 9, 0));
+    const due = await store.create({ kind: 'weekly', text: 'Due task', hour: 9, minute: 0, weekdays: [1] });
+
+    const [, created] = await Promise.all([
+      store.markGenerated(due.id, '2026-05-11'),
+      store.create({ kind: 'one-time', text: 'New task', hour: 12, minute: 0, date: '2026-05-12' })
+    ]);
+
+    expect(await store.list()).toEqual([
+      expect.objectContaining({ id: due.id, lastGeneratedDate: '2026-05-11' }),
+      expect.objectContaining({ id: created.id, text: 'New task' })
+    ]);
+  });
+
+  test('continues queued saves after a write fails', async () => {
+    const store = new ScheduledTodoStore(file, () => new Date(2026, 4, 11, 9, 0));
+    vi.mocked(writeFile).mockRejectedValueOnce(new Error('Temporary disk failure'));
+
+    const [failed, saved] = await Promise.allSettled([
+      store.create({ kind: 'weekly', text: 'Failed task', hour: 9, minute: 0, weekdays: [1] }),
+      store.create({ kind: 'weekly', text: 'Saved task', hour: 10, minute: 0, weekdays: [1] })
+    ]);
+
+    expect(failed).toMatchObject({ status: 'rejected', reason: new Error('Temporary disk failure') });
+    expect(saved.status).toBe('fulfilled');
+    expect((await store.list()).map((rule) => rule.text)).toEqual(['Saved task']);
+  });
+
+  test('serializes concurrent edits, deletion and import without overwriting other changes', async () => {
+    const store = new ScheduledTodoStore(file, () => new Date(2026, 4, 11, 9, 0));
+    const edit = await store.create({ kind: 'weekly', text: 'Original', hour: 9, minute: 0, weekdays: [1] });
+    const disable = await store.create({ kind: 'weekly', text: 'Disable', hour: 9, minute: 0, weekdays: [1] });
+    const remove = await store.create({ kind: 'weekly', text: 'Remove', hour: 9, minute: 0, weekdays: [1] });
+    const imported = { ...edit, id: 'imported-rule', text: 'Imported' };
+
+    await Promise.all([
+      store.update(edit.id, { kind: 'weekly', text: 'Edited', hour: 10, minute: 0, weekdays: [1] }),
+      store.setEnabled(disable.id, false),
+      store.delete(remove.id),
+      store.importJsonFromContent(JSON.stringify({ version: 1, rules: [imported] }))
+    ]);
+
+    expect(await store.list()).toEqual([
+      expect.objectContaining({ id: edit.id, text: 'Edited', hour: 10 }),
+      expect.objectContaining({ id: disable.id, enabled: false }),
+      expect.objectContaining({ id: imported.id, text: 'Imported' })
+    ]);
+  });
+
+  test('lists, reads and exports the completed save when called while it is pending', async () => {
+    const store = new ScheduledTodoStore(file, () => new Date(2026, 4, 11, 9, 0));
+    const exportFile = join(dir, 'export.json');
+
+    const [created, listed, source] = await Promise.all([
+      store.create({ kind: 'weekly', text: 'Pending task', hour: 9, minute: 0, weekdays: [1] }),
+      store.list(),
+      store.readSourceContent(),
+      store.exportJson(exportFile)
+    ]);
+
+    expect(listed).toEqual([created]);
+    expect(JSON.parse(source).rules).toEqual([created]);
+    expect(JSON.parse(await readFile(exportFile, 'utf8')).rules).toEqual([created]);
   });
 
   test('creates a weekly rule and generates it once for the matching local day and time', async () => {
